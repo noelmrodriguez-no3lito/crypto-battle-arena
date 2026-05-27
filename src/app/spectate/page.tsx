@@ -6,6 +6,7 @@ import { getCrypto, type CryptoCharacter } from "@/data/cryptos";
 import { useMatch } from "@/lib/use-match";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { CryptoPortrait } from "@/components/crypto-portrait";
 import type { Phase } from "@/lib/match";
 
 const PHASES: { key: Phase; label: string }[] = [
@@ -194,9 +195,13 @@ function CornerCard({
 
       <p className={`font-arcade text-[9px] ${accent} tracking-widest`}>{cornerLabel}</p>
 
+      <div className="mt-2 flex justify-center">
+        <CryptoPortrait crypto={char} size="md" corner={side === "left" ? "red" : "blue"} />
+      </div>
+
       {char ? (
         <>
-          <p className={`font-arcade text-2xl sm:text-3xl mt-2 ${color}`}>{char.ticker}</p>
+          <p className={`font-arcade text-xl sm:text-2xl mt-2 ${color}`}>{char.ticker}</p>
           <p className="font-terminal text-base text-muted-foreground truncate">{char.name}</p>
           <p className="font-terminal text-sm text-muted-foreground/70 italic truncate mt-0.5">
             {char.tagline}
@@ -204,7 +209,7 @@ function CornerCard({
         </>
       ) : (
         <>
-          <p className="font-arcade text-2xl sm:text-3xl mt-2 text-muted-foreground/40 animate-flicker">
+          <p className="font-arcade text-base sm:text-lg mt-2 text-muted-foreground/40 animate-flicker">
             ???
           </p>
           <p className="font-terminal text-sm text-muted-foreground/70 italic mt-1">

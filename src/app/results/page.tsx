@@ -12,6 +12,7 @@ import {
 } from "@/lib/match";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { CryptoPortrait, CryptoBadge } from "@/components/crypto-portrait";
 
 export default function ResultsPage() {
   const router = useRouter();
@@ -192,15 +193,7 @@ export default function ResultsPage() {
                     key={p.id}
                     className={`flex gap-2 ${p.role === "p1" ? "" : "flex-row-reverse"}`}
                   >
-                    <div
-                      className={`shrink-0 grid place-items-center w-8 h-8 rounded-sm border ${
-                        p.role === "p1" ? "border-neon-red/60" : "border-neon-blue/60"
-                      } font-arcade text-[9px] ${
-                        p.role === "p1" ? "glow-red" : "glow-blue"
-                      }`}
-                    >
-                      {c.ticker}
-                    </div>
+                    <CryptoBadge crypto={c} size="sm" className="shrink-0" />
                     <div
                       className={`flex-1 rounded border p-2 ${
                         p.role === "p1"
@@ -275,7 +268,10 @@ function FighterTotal({
       <p className={`font-arcade text-[9px] ${accent} tracking-widest`}>
         {side === "left" ? "RED" : "BLUE"} CORNER
       </p>
-      <p className={`font-arcade text-2xl sm:text-3xl mt-2 ${color}`}>{char.ticker}</p>
+      <div className="mt-2 flex justify-center">
+        <CryptoPortrait crypto={char} size="lg" corner={side === "left" ? "red" : "blue"} />
+      </div>
+      <p className={`font-arcade text-xl sm:text-2xl mt-2 ${color}`}>{char.ticker}</p>
       <p className="font-terminal text-base mt-1 truncate">{char.name}</p>
       <p className="font-arcade text-3xl sm:text-4xl mt-3 tabular-nums">{pct}%</p>
 

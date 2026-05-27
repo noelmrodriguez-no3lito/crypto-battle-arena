@@ -8,6 +8,7 @@ import { formatClock, DEFAULT_TURN_MS } from "@/lib/match";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { CryptoPortrait, CryptoBadge } from "@/components/crypto-portrait";
 
 export default function BattlePage() {
   const router = useRouter();
@@ -152,6 +153,7 @@ export default function BattlePage() {
           }
           mySide={role}
           onSubmit={(text, mode) => send({ type: "POST_ARGUMENT", role, text, mode })}
+          onEndTurn={() => send({ type: "ROTATE_TURN", at: Date.now() })}
         />
       ) : (
         <AudienceBar
@@ -183,7 +185,6 @@ function FighterHud({
 }) {
   const align = side === "left" ? "text-left" : "text-right";
   const flexAlign = side === "left" ? "" : "flex-row-reverse";
-  const color = side === "left" ? "glow-red" : "glow-blue";
   const ring = side === "left" ? "ring-glow-red" : "ring-glow-blue";
   const borderTurn = side === "left" ? "border-neon-red" : "border-neon-blue";
   const accent = side === "left" ? "text-neon-red" : "text-neon-blue";
@@ -200,13 +201,11 @@ function FighterHud({
       <span className={`absolute bottom-0 ${side === "left" ? "right-0" : "left-0"} w-3 h-3 border-b-2 border-r-2 ${side === "left" ? "" : "rotate-90"} ${isTurn ? borderTurn : "border-border"}`} />
 
       <div className={`flex gap-3 items-center ${flexAlign}`}>
-        <div
-          className={`shrink-0 grid place-items-center w-12 h-12 sm:w-14 sm:h-14 rounded-sm border ${
-            isTurn ? borderTurn : "border-border"
-          } bg-background/60 font-arcade text-sm sm:text-base ${color}`}
-        >
-          {char.ticker}
-        </div>
+        <CryptoPortrait
+          crypto={char}
+          size="sm"
+          corner={side === "left" ? "red" : "blue"}
+        />
         <div className={`${align} flex-1 min-w-0`}>
           <p className={`font-arcade text-[10px] ${accent} tracking-widest`}>
             {side === "left" ? "RED CORNER" : "BLUE CORNER"}
@@ -281,15 +280,7 @@ function ArgumentFeed({
               style={{ animationDelay: `${Math.min(i * 30, 200)}ms` }}
             >
               {/* avatar chip */}
-              <div
-                className={`shrink-0 grid place-items-center w-9 h-9 sm:w-10 sm:h-10 rounded-sm border ${
-                  isLeft ? "border-neon-red/60" : "border-neon-blue/60"
-                } bg-card font-arcade text-[10px] sm:text-xs ${
-                  isLeft ? "glow-red" : "glow-blue"
-                }`}
-              >
-                {char.ticker}
-              </div>
+              <CryptoBadge crypto={char} size="sm" className="shrink-0" />
 
               {/* speech bubble */}
               <div
@@ -350,11 +341,13 @@ function Composer({
   turnLabel,
   mySide,
   onSubmit,
+  onEndTurn,
 }: {
   disabled: boolean;
   turnLabel: string;
   mySide: "p1" | "p2";
   onSubmit: (text: string, mode: import("@/lib/match").TurnInputMode) => void;
+  onEndTurn: () => void;
 }) {
   const [text, setText] = useState("");
   const [mode, setMode] = useState<"text" | "voice">("text");
@@ -468,9 +461,24 @@ function Composer({
           POST →
         </Button>
       </div>
-      <p className="font-arcade text-[9px] text-muted-foreground text-right">
-        {text.length}/280
-      </p>
+      <div className="flex items-center justify-between gap-3">
+        <p className="font-arcade text-[9px] text-muted-foreground">
+          {text.length}/280
+        </p>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            if (listening) stopVoice();
+            onEndTurn();
+          }}
+          disabled={disabled}
+          className="font-arcade text-[10px] h-7 border-neon-green/60 hover:bg-neon-green/15 hover:text-neon-green"
+          title="Pass the mic. Your remaining time is forfeit."
+        >
+          ⏭ END TURN
+        </Button>
+      </div>
     </div>
   );
 }

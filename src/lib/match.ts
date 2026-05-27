@@ -64,9 +64,9 @@ export const WALLET_KEY = (role: "p1" | "p2") => `cba:wallet:${role}`;
 export const SETTLED_KEY = (matchId: string, role: "p1" | "p2") =>
   `cba:settled:${matchId}:${role}`;
 
-export const DEFAULT_BATTLE_MS = 2 * 60 * 1000;
-export const DEFAULT_TURN_MS = 20 * 1000;
-export const DEFAULT_ROUNDS = 3; // 3 rounds × 2 turns × 20s = 2 min, equal turns guaranteed
+export const DEFAULT_BATTLE_MS = 10 * 60 * 1000;
+export const DEFAULT_TURN_MS = 60 * 1000;
+export const DEFAULT_ROUNDS = 5; // 5 rounds × 2 turns × 60s cap = 10 min upper bound; turns can end early
 export const STARTING_BALANCE = 100;
 export const WAGER_CHIPS = [5, 10, 25, 50, 100] as const;
 

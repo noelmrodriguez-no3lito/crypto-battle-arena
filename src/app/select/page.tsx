@@ -6,6 +6,7 @@ import { CRYPTO_ROSTER, getCrypto, type CryptoCharacter } from "@/data/cryptos";
 import { useMatch } from "@/lib/use-match";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { CryptoPortrait } from "@/components/crypto-portrait";
 
 export default function SelectPage() {
   const router = useRouter();
@@ -143,18 +144,25 @@ export default function SelectPage() {
                 />
               )}
 
-              <div className="flex items-center justify-between">
-                <span className={`font-arcade text-sm ${c.glowClass}`}>{c.ticker}</span>
-                {takenBy && (
-                  <Badge
-                    variant="outline"
-                    className={`font-arcade text-[9px] ${
-                      takenBy === "p1" ? "border-neon-red/60 text-neon-red" : "border-neon-blue/60 text-neon-blue"
-                    }`}
-                  >
-                    {takenBy.toUpperCase()}
-                  </Badge>
-                )}
+              <div className="flex items-start justify-between gap-3">
+                <CryptoPortrait
+                  crypto={c}
+                  size="md"
+                  corner={takenBy === "p1" ? "red" : takenBy === "p2" ? "blue" : null}
+                />
+                <div className="flex flex-col items-end gap-1">
+                  <span className={`font-arcade text-sm ${c.glowClass}`}>{c.ticker}</span>
+                  {takenBy && (
+                    <Badge
+                      variant="outline"
+                      className={`font-arcade text-[9px] ${
+                        takenBy === "p1" ? "border-neon-red/60 text-neon-red" : "border-neon-blue/60 text-neon-blue"
+                      }`}
+                    >
+                      {takenBy.toUpperCase()}
+                    </Badge>
+                  )}
+                </div>
               </div>
               <p className="font-terminal text-base mt-2">{c.name}</p>
               <p className="font-terminal text-sm text-muted-foreground italic">{c.tagline}</p>
@@ -209,19 +217,22 @@ function MatchupSlot({
 
   return (
     <div
-      className={`relative rounded border ${borderCls} bg-card/60 p-3 ${char ? "" : "opacity-50"}`}
+      className={`relative rounded border ${borderCls} bg-card/60 p-3 flex items-center gap-3 ${char ? "" : "opacity-50"}`}
     >
-      <p className={`font-arcade text-[9px] ${accent} tracking-widest`}>{label}</p>
-      {char ? (
-        <>
-          <p className={`font-arcade text-xl mt-1 ${color}`}>{char.ticker}</p>
-          <p className="font-terminal text-sm text-muted-foreground truncate">{char.name}</p>
-        </>
-      ) : (
-        <p className="font-terminal text-sm text-muted-foreground italic mt-1">
-          choosing…
-        </p>
-      )}
+      <CryptoPortrait crypto={char} size="sm" corner={corner} />
+      <div className="min-w-0 flex-1">
+        <p className={`font-arcade text-[9px] ${accent} tracking-widest`}>{label}</p>
+        {char ? (
+          <>
+            <p className={`font-arcade text-xl mt-1 ${color}`}>{char.ticker}</p>
+            <p className="font-terminal text-sm text-muted-foreground truncate">{char.name}</p>
+          </>
+        ) : (
+          <p className="font-terminal text-sm text-muted-foreground italic mt-1">
+            choosing…
+          </p>
+        )}
+      </div>
     </div>
   );
 }

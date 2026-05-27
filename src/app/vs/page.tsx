@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { getCrypto } from "@/data/cryptos";
 import { useMatch } from "@/lib/use-match";
 import { Button } from "@/components/ui/button";
+import { CryptoPortrait } from "@/components/crypto-portrait";
 
 export default function VsPage() {
   const router = useRouter();
@@ -111,8 +112,11 @@ function FighterColumn({
       <span className={`absolute -bottom-1 -right-1 w-4 h-4 border-b-2 border-r-2 ${borderCls}`} />
 
       <p className={`font-arcade text-[10px] ${accent} tracking-widest`}>{cornerLabel}</p>
-      <p className={`font-arcade text-3xl sm:text-5xl mt-3 ${color}`}>{fighter.ticker}</p>
-      <p className="font-terminal text-lg sm:text-xl mt-2">{fighter.name}</p>
+      <div className="mt-3 flex justify-center">
+        <CryptoPortrait crypto={fighter} size="xl" corner={side === "left" ? "red" : "blue"} />
+      </div>
+      <p className={`font-arcade text-2xl sm:text-3xl mt-3 ${color}`}>{fighter.ticker}</p>
+      <p className="font-terminal text-lg sm:text-xl mt-1">{fighter.name}</p>
       <p className="font-terminal text-sm text-muted-foreground italic mt-1">
         &quot;{fighter.tagline}&quot;
       </p>

@@ -11,8 +11,10 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-arcade: var(--font-arcade);
-  --font-terminal: var(--font-terminal);
-  --font-heading: var(--font-arcade);
+  /* Phase E: --font-terminal now aliases Geist sans so the legacy `font-terminal`
+     Tailwind class renders as modern sans without touching 29 callsites. */
+  --font-terminal: var(--font-geist-sans);
+  --font-heading: var(--font-geist-sans);
 
   --color-p1: var(--p1);
   --color-p1-foreground: var(--p1-foreground);
@@ -65,10 +67,11 @@
 }
 
 :root {
-  --background: oklch(0.16 0.03 270);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.21 0.04 270);
-  --card-foreground: oklch(0.985 0 0);
+  /* Deeper, slightly cooler base — modern broadcast slate */
+  --background: oklch(0.13 0.02 260);
+  --foreground: oklch(0.98 0 0);
+  --card: oklch(0.18 0.025 260);
+  --card-foreground: oklch(0.98 0 0);
   --popover: oklch(0.21 0.04 270);
   --popover-foreground: oklch(0.985 0 0);
   --primary: oklch(0.62 0.25 25);
@@ -114,10 +117,10 @@
 }
 
 .dark {
-  --background: oklch(0.16 0.03 270);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.21 0.04 270);
-  --card-foreground: oklch(0.985 0 0);
+  --background: oklch(0.13 0.02 260);
+  --foreground: oklch(0.98 0 0);
+  --card: oklch(0.18 0.025 260);
+  --card-foreground: oklch(0.98 0 0);
   --popover: oklch(0.21 0.04 270);
   --popover-foreground: oklch(0.985 0 0);
   --primary: oklch(0.62 0.25 25);
@@ -140,12 +143,22 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-feature-settings: "cv11", "ss01";
   }
   button:not(:disabled), [role="button"]:not(:disabled) {
     cursor: pointer;
   }
   html {
-    @apply font-terminal;
+    font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  }
+  /* Modern type rhythm */
+  h1, h2, h3 {
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  /* Numerals: tabular by default in the app */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
   }
 }
 
@@ -351,6 +364,77 @@
       radial-gradient(ellipse 30% 60% at 75% -10%, rgba(45, 140, 255, 0.18), transparent 70%),
       radial-gradient(ellipse 30% 70% at 50% -10%, rgba(255, 230, 0, 0.10), transparent 70%);
   }
+
+  /* Modern broadcast surfaces — gradient backgrounds */
+  .surface-red {
+    background:
+      radial-gradient(circle at 70% 30%, rgba(255, 45, 85, 0.28), transparent 60%),
+      linear-gradient(160deg, rgba(255, 45, 85, 0.18) 0%, rgba(0, 0, 0, 0) 60%),
+      var(--card);
+  }
+  .surface-blue {
+    background:
+      radial-gradient(circle at 30% 30%, rgba(45, 140, 255, 0.28), transparent 60%),
+      linear-gradient(200deg, rgba(45, 140, 255, 0.18) 0%, rgba(0, 0, 0, 0) 60%),
+      var(--card);
+  }
+  .surface-green {
+    background:
+      radial-gradient(circle at 50% 30%, rgba(57, 255, 122, 0.22), transparent 60%),
+      linear-gradient(180deg, rgba(57, 255, 122, 0.12) 0%, rgba(0, 0, 0, 0) 60%),
+      var(--card);
+  }
+  .surface-winner {
+    background:
+      radial-gradient(circle at 50% 0%, rgba(255, 200, 60, 0.30), transparent 65%),
+      linear-gradient(180deg, rgba(255, 90, 60, 0.18) 0%, rgba(0, 0, 0, 0) 60%),
+      var(--card);
+  }
+
+  /* Vivid gradient strokes for active/important surfaces */
+  .stroke-red-amber {
+    background: linear-gradient(135deg, #FF2D55 0%, #FF9F1C 100%);
+  }
+  .stroke-blue-cyan {
+    background: linear-gradient(135deg, #2D8CFF 0%, #00E5FF 100%);
+  }
+  .stroke-purple-pink {
+    background: linear-gradient(135deg, #8A2BE2 0%, #FF37D1 100%);
+  }
+
+  /* Modern type accents */
+  .type-display {
+    font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.04em;
+    line-height: 0.95;
+  }
+  .type-mono {
+    font-family: var(--font-geist-mono), ui-monospace, monospace;
+    letter-spacing: 0;
+  }
+  .type-eyebrow {
+    font-family: var(--font-arcade), ui-monospace, monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  /* Atmospheric backdrop for the lobby hero */
+  .lobby-aura {
+    background:
+      radial-gradient(circle at 20% 30%, rgba(255, 45, 85, 0.20), transparent 50%),
+      radial-gradient(circle at 80% 30%, rgba(45, 140, 255, 0.20), transparent 50%),
+      radial-gradient(circle at 50% 90%, rgba(57, 255, 122, 0.15), transparent 50%);
+  }
+
+  /* Vote bubble pop-in for crowd reactions */
+  @keyframes vote-pop {
+    0% { transform: translateY(8px) scale(0.6); opacity: 0; }
+    25% { transform: translateY(-2px) scale(1.1); opacity: 1; }
+    100% { transform: translateY(-40px) scale(0.9); opacity: 0; }
+  }
+  .animate-vote-pop { animation: vote-pop 1.4s cubic-bezier(0.18, 0.89, 0.32, 1.05); }
 }
 
 @layer base {

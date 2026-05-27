@@ -2,20 +2,22 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getCrypto } from "@/data/cryptos";
+import { getFighter, type Fighter } from "@/data/fighters";
 import { useMatch } from "@/lib/use-match";
 import { formatClock, DEFAULT_TURN_MS } from "@/lib/match";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { CryptoPortrait, CryptoBadge } from "@/components/crypto-portrait";
+import { FighterPortrait, FighterBadge } from "@/components/fighter-portrait";
 
 export default function BattlePage() {
   const router = useRouter();
   const { state, role, send } = useMatch();
 
-  const p1Char = state.p1.cryptoId ? getCrypto(state.p1.cryptoId) : null;
-  const p2Char = state.p2.cryptoId ? getCrypto(state.p2.cryptoId) : null;
+  const p1Char = getFighter(state.p1.fighterId);
+  const p2Char = getFighter(state.p2.fighterId);
+  const p1Token = state.p1.tokenName;
+  const p2Token = state.p2.tokenName;
 
   const [now, setNow] = useState(0);
   useEffect(() => {
@@ -68,6 +70,7 @@ export default function BattlePage() {
       <div className="grid grid-cols-[1fr_auto_1fr] items-stretch gap-2 sm:gap-4">
         <FighterHud
           char={p1Char}
+          token={p1Token}
           votes={state.votes.p1}
           pct={p1Pct}
           side="left"
@@ -114,6 +117,7 @@ export default function BattlePage() {
 
         <FighterHud
           char={p2Char}
+          token={p2Token}
           votes={state.votes.p2}
           pct={p2Pct}
           side="right"
@@ -140,6 +144,8 @@ export default function BattlePage() {
         posts={state.battle.posts}
         p1Char={p1Char}
         p2Char={p2Char}
+        p1Token={p1Token}
+        p2Token={p2Token}
         canVote={canVote}
         onVote={(target, postId) => send({ type: "VOTE", role: target, postId })}
       />
@@ -158,8 +164,8 @@ export default function BattlePage() {
       ) : (
         <AudienceBar
           onVote={(target) => send({ type: "VOTE", role: target })}
-          p1Ticker={p1Char.ticker}
-          p2Ticker={p2Char.ticker}
+          p1Token={p1Token || p1Char.name}
+          p2Token={p2Token || p2Char.name}
         />
       )}
     </main>
@@ -170,13 +176,15 @@ export default function BattlePage() {
 
 function FighterHud({
   char,
+  token,
   votes,
   pct,
   side,
   isTurn,
   isYou,
 }: {
-  char: NonNullable<ReturnType<typeof getCrypto>>;
+  char: Fighter;
+  token: string;
   votes: number;
   pct: number;
   side: "left" | "right";
@@ -188,6 +196,7 @@ function FighterHud({
   const ring = side === "left" ? "ring-glow-red" : "ring-glow-blue";
   const borderTurn = side === "left" ? "border-neon-red" : "border-neon-blue";
   const accent = side === "left" ? "text-neon-red" : "text-neon-blue";
+  const glow = side === "left" ? "glow-red" : "glow-blue";
   const bar = side === "left" ? "bg-neon-red" : "bg-neon-blue";
 
   return (
@@ -196,14 +205,13 @@ function FighterHud({
         isTurn ? `${borderTurn} ${ring}` : "border-border"
       }`}
     >
-      {/* corner notches */}
       <span className={`absolute top-0 ${side === "left" ? "left-0" : "right-0"} w-3 h-3 border-t-2 border-l-2 ${side === "left" ? "" : "rotate-90"} ${isTurn ? borderTurn : "border-border"}`} />
       <span className={`absolute bottom-0 ${side === "left" ? "right-0" : "left-0"} w-3 h-3 border-b-2 border-r-2 ${side === "left" ? "" : "rotate-90"} ${isTurn ? borderTurn : "border-border"}`} />
 
       <div className={`flex gap-3 items-center ${flexAlign}`}>
-        <CryptoPortrait
-          crypto={char}
-          size="sm"
+        <FighterPortrait
+          fighter={char}
+          size="md"
           corner={side === "left" ? "red" : "blue"}
         />
         <div className={`${align} flex-1 min-w-0`}>
@@ -211,7 +219,8 @@ function FighterHud({
             {side === "left" ? "RED CORNER" : "BLUE CORNER"}
             {isYou && " · YOU"}
           </p>
-          <p className="font-terminal text-lg sm:text-xl truncate">{char.name}</p>
+          <p className={`font-arcade text-lg sm:text-xl ${glow} truncate`}>{token || char.name}</p>
+          <p className="font-terminal text-sm text-muted-foreground truncate">{char.name}</p>
           <p className="font-arcade text-[10px] text-muted-foreground mt-0.5">
             {votes} VOTE{votes === 1 ? "" : "S"} · {Math.round(pct)}%
           </p>
@@ -238,12 +247,16 @@ function ArgumentFeed({
   posts,
   p1Char,
   p2Char,
+  p1Token,
+  p2Token,
   canVote,
   onVote,
 }: {
   posts: import("@/lib/match").ArgumentPost[];
-  p1Char: NonNullable<ReturnType<typeof getCrypto>>;
-  p2Char: NonNullable<ReturnType<typeof getCrypto>>;
+  p1Char: Fighter;
+  p2Char: Fighter;
+  p1Token: string;
+  p2Token: string;
   canVote: boolean;
   onVote: (target: "p1" | "p2", postId: string) => void;
 }) {
@@ -270,7 +283,9 @@ function ArgumentFeed({
       ) : (
         posts.map((p, i) => {
           const char = p.role === "p1" ? p1Char : p2Char;
+          const token = p.role === "p1" ? p1Token : p2Token;
           const isLeft = p.role === "p1";
+          const label = token || char.name;
           return (
             <div
               key={p.id}
@@ -279,10 +294,8 @@ function ArgumentFeed({
               }`}
               style={{ animationDelay: `${Math.min(i * 30, 200)}ms` }}
             >
-              {/* avatar chip */}
-              <CryptoBadge crypto={char} size="sm" className="shrink-0" />
+              <FighterBadge fighter={char} size="sm" className="shrink-0" />
 
-              {/* speech bubble */}
               <div
                 className={`relative max-w-[80%] sm:max-w-[70%] rounded-md border p-3 ${
                   isLeft
@@ -290,7 +303,6 @@ function ArgumentFeed({
                     : "border-neon-blue/50 bg-neon-blue/[0.06]"
                 }`}
               >
-                {/* tail */}
                 <span
                   className={`absolute top-3 w-2 h-2 rotate-45 border ${
                     isLeft
@@ -304,7 +316,7 @@ function ArgumentFeed({
                       isLeft ? "glow-red" : "glow-blue"
                     }`}
                   >
-                    {char.ticker} · {p.mode === "voice" ? "🎤" : "⌨"}
+                    {label} · {p.mode === "voice" ? "🎤" : "⌨"}
                   </span>
                   <span className="font-arcade text-[9px] text-muted-foreground">
                     {p.votes.total} VOTE{p.votes.total === 1 ? "" : "S"}
@@ -323,7 +335,7 @@ function ArgumentFeed({
                           : "border-neon-blue/60 hover:bg-neon-blue/15 hover:text-neon-blue"
                       }`}
                     >
-                      ▲ +1 {char.ticker}
+                      ▲ +1 {label}
                     </Button>
                   </div>
                 )}
@@ -503,12 +515,12 @@ function VoiceVisualizer() {
 
 function AudienceBar({
   onVote,
-  p1Ticker,
-  p2Ticker,
+  p1Token,
+  p2Token,
 }: {
   onVote: (target: "p1" | "p2") => void;
-  p1Ticker: string;
-  p2Ticker: string;
+  p1Token: string;
+  p2Token: string;
 }) {
   return (
     <div className="rounded-md border-2 border-neon-green/40 bg-card/90 backdrop-blur-sm p-3 flex flex-col sm:flex-row gap-2 sm:gap-3 items-center justify-center">
@@ -521,14 +533,14 @@ function AudienceBar({
           variant="outline"
           className="flex-1 sm:flex-none font-arcade text-xs h-11 px-6 border-neon-red/60 hover:bg-neon-red/15 hover:text-neon-red active:animate-vote-pulse"
         >
-          ▲ {p1Ticker}
+          ▲ {p1Token}
         </Button>
         <Button
           onClick={() => onVote("p2")}
           variant="outline"
           className="flex-1 sm:flex-none font-arcade text-xs h-11 px-6 border-neon-blue/60 hover:bg-neon-blue/15 hover:text-neon-blue active:animate-vote-pulse"
         >
-          {p2Ticker} ▲
+          {p2Token} ▲
         </Button>
       </div>
     </div>

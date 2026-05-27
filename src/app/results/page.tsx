@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getCrypto } from "@/data/cryptos";
+import { getFighter, type Fighter } from "@/data/fighters";
 import { useMatch } from "@/lib/use-match";
 import {
   SETTLED_KEY,
@@ -12,14 +12,16 @@ import {
 } from "@/lib/match";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CryptoPortrait, CryptoBadge } from "@/components/crypto-portrait";
+import { FighterPortrait, FighterBadge } from "@/components/fighter-portrait";
 
 export default function ResultsPage() {
   const router = useRouter();
   const { state, role, hydrated, send } = useMatch();
 
-  const p1 = state.p1.cryptoId ? getCrypto(state.p1.cryptoId) : null;
-  const p2 = state.p2.cryptoId ? getCrypto(state.p2.cryptoId) : null;
+  const p1 = getFighter(state.p1.fighterId);
+  const p2 = getFighter(state.p2.fighterId);
+  const p1Token = state.p1.tokenName;
+  const p2Token = state.p2.tokenName;
   const total = state.votes.p1 + state.votes.p2;
   const p1Pct = total > 0 ? Math.round((state.votes.p1 / total) * 100) : 50;
   const p2Pct = 100 - p1Pct;
@@ -59,6 +61,8 @@ export default function ResultsPage() {
 
   const winnerChar =
     state.winner === "p1" ? p1 : state.winner === "p2" ? p2 : null;
+  const winnerToken =
+    state.winner === "p1" ? p1Token : state.winner === "p2" ? p2Token : "";
   const winnerSide = state.winner === "p1" ? "left" : state.winner === "p2" ? "right" : null;
 
   const rematch = () => {
@@ -82,7 +86,7 @@ export default function ResultsPage() {
                 winnerSide === "left" ? "glow-red" : "glow-blue"
               } text-chromatic-lg`}
             >
-              {winnerChar?.ticker} WINS
+              {(winnerToken || winnerChar?.name)} WINS
             </h1>
           )}
           {state.winner !== "tie" && winnerChar && (
@@ -141,6 +145,7 @@ export default function ResultsPage() {
         <div className="grid grid-cols-[1fr_auto_1fr] gap-3 sm:gap-5 items-center">
           <FighterTotal
             char={p1}
+            token={p1Token}
             votes={state.votes.p1}
             pct={p1Pct}
             side="left"
@@ -151,6 +156,7 @@ export default function ResultsPage() {
           <p className="font-arcade text-2xl sm:text-3xl text-muted-foreground">vs</p>
           <FighterTotal
             char={p2}
+            token={p2Token}
             votes={state.votes.p2}
             pct={p2Pct}
             side="right"
@@ -193,7 +199,7 @@ export default function ResultsPage() {
                     key={p.id}
                     className={`flex gap-2 ${p.role === "p1" ? "" : "flex-row-reverse"}`}
                   >
-                    <CryptoBadge crypto={c} size="sm" className="shrink-0" />
+                    {c && <FighterBadge fighter={c} size="sm" className="shrink-0" />}
                     <div
                       className={`flex-1 rounded border p-2 ${
                         p.role === "p1"
@@ -224,6 +230,7 @@ export default function ResultsPage() {
 
 function FighterTotal({
   char,
+  token,
   votes,
   pct,
   side,
@@ -231,7 +238,8 @@ function FighterTotal({
   isLoser,
   wager,
 }: {
-  char: NonNullable<ReturnType<typeof getCrypto>>;
+  char: Fighter;
+  token: string;
   votes: number;
   pct: number;
   side: "left" | "right";
@@ -269,9 +277,9 @@ function FighterTotal({
         {side === "left" ? "RED" : "BLUE"} CORNER
       </p>
       <div className="mt-2 flex justify-center">
-        <CryptoPortrait crypto={char} size="lg" corner={side === "left" ? "red" : "blue"} />
+        <FighterPortrait fighter={char} size="lg" corner={side === "left" ? "red" : "blue"} />
       </div>
-      <p className={`font-arcade text-xl sm:text-2xl mt-2 ${color}`}>{char.ticker}</p>
+      <p className={`font-arcade text-xl sm:text-2xl mt-2 ${color}`}>{token || char.name}</p>
       <p className="font-terminal text-base mt-1 truncate">{char.name}</p>
       <p className="font-arcade text-3xl sm:text-4xl mt-3 tabular-nums">{pct}%</p>
 

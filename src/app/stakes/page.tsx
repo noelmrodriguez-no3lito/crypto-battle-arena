@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { getCrypto } from "@/data/cryptos";
+import { getFighter } from "@/data/fighters";
 import { useMatch } from "@/lib/use-match";
 import { WAGER_CHIPS, getWallet } from "@/lib/match";
 import { Button } from "@/components/ui/button";
@@ -34,8 +34,10 @@ export default function StakesPage() {
     if (state.phase === "vs") router.push("/vs");
   }, [state.phase, router]);
 
-  const p1Char = state.p1.cryptoId ? getCrypto(state.p1.cryptoId) : null;
-  const p2Char = state.p2.cryptoId ? getCrypto(state.p2.cryptoId) : null;
+  const p1Char = getFighter(state.p1.fighterId);
+  const p2Char = getFighter(state.p2.fighterId);
+  const myToken = role === "p1" ? state.p1.tokenName : role === "p2" ? state.p2.tokenName : "";
+  const oppToken = role === "p1" ? state.p2.tokenName : role === "p2" ? state.p1.tokenName : "";
 
   const myBalance = useMemo(() => {
     if (!hydrated || (role !== "p1" && role !== "p2")) return 0;
@@ -136,7 +138,7 @@ export default function StakesPage() {
             </div>
             {p1Char && p2Char && (
               <p className="font-terminal text-base text-muted-foreground">
-                Repping {role === "p1" ? p1Char.ticker : p2Char.ticker}
+                Repping <span className="text-foreground font-bold">{myToken}</span>
               </p>
             )}
 
@@ -210,7 +212,7 @@ export default function StakesPage() {
             </div>
             {p1Char && p2Char && (
               <p className="font-terminal text-base text-muted-foreground">
-                Repping {oppRole === "p1" ? p1Char.ticker : p2Char.ticker}
+                Repping <span className="text-foreground font-bold">{oppToken}</span>
               </p>
             )}
             <div className="rounded-md border border-border p-6 text-center bg-muted/30 relative overflow-hidden">

@@ -2,23 +2,22 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { getCrypto } from "@/data/cryptos";
+import { getFighter, type Fighter } from "@/data/fighters";
 import { useMatch } from "@/lib/use-match";
 import { Button } from "@/components/ui/button";
-import { CryptoPortrait } from "@/components/crypto-portrait";
+import { FighterPortrait } from "@/components/fighter-portrait";
 
 export default function VsPage() {
   const router = useRouter();
   const { state, role, send } = useMatch();
 
-  const p1 = state.p1.cryptoId ? getCrypto(state.p1.cryptoId) : null;
-  const p2 = state.p2.cryptoId ? getCrypto(state.p2.cryptoId) : null;
+  const p1 = getFighter(state.p1.fighterId);
+  const p2 = getFighter(state.p2.fighterId);
 
   useEffect(() => {
     if (state.phase === "battle") router.push("/battle");
   }, [state.phase, router]);
 
-  // First fighter tab auto-starts after the reveal animation.
   useEffect(() => {
     if (role === "audience") return;
     if (state.phase !== "vs") return;
@@ -32,7 +31,6 @@ export default function VsPage() {
 
   return (
     <main className="arena-grid flex-1 flex items-center justify-center relative overflow-hidden px-4 py-8">
-      {/* Shockwave rings */}
       <div className="pointer-events-none absolute inset-0 grid place-items-center">
         <div className="w-[140vmin] h-[140vmin] rounded-full border border-neon-yellow/20" />
       </div>
@@ -41,9 +39,8 @@ export default function VsPage() {
       </div>
 
       <div className="relative grid grid-cols-3 items-center gap-4 sm:gap-6 px-2 sm:px-6 max-w-6xl w-full animate-vs-zoom">
-        <FighterColumn fighter={p1} side="left" />
+        <FighterColumn fighter={p1} side="left" token={state.p1.tokenName} />
 
-        {/* VS badge */}
         <div className="flex flex-col items-center gap-3">
           <p className="font-arcade text-[10px] text-muted-foreground tracking-widest">
             ROUND 1
@@ -61,7 +58,7 @@ export default function VsPage() {
           )}
         </div>
 
-        <FighterColumn fighter={p2} side="right" />
+        <FighterColumn fighter={p2} side="right" token={state.p2.tokenName} />
       </div>
 
       {role !== "audience" && (
@@ -82,15 +79,16 @@ export default function VsPage() {
 function FighterColumn({
   fighter,
   side,
+  token,
 }: {
-  fighter: ReturnType<typeof getCrypto> | null | undefined;
+  fighter: Fighter | null | undefined;
   side: "left" | "right";
+  token: string;
 }) {
   const color = side === "left" ? "glow-red" : "glow-blue";
   const accent = side === "left" ? "text-neon-red" : "text-neon-blue";
   const ring = side === "left" ? "ring-glow-red" : "ring-glow-blue";
   const borderCls = side === "left" ? "border-neon-red" : "border-neon-blue";
-  const bar = side === "left" ? "bg-neon-red" : "bg-neon-blue";
   const cornerLabel = side === "left" ? "RED CORNER" : "BLUE CORNER";
 
   if (!fighter) {
@@ -105,45 +103,26 @@ function FighterColumn({
     <div
       className={`relative rounded-md bg-card/80 backdrop-blur-sm border-2 ${borderCls} ${ring} p-4 sm:p-6 text-center`}
     >
-      {/* corner brackets */}
       <span className={`absolute -top-1 -left-1 w-4 h-4 border-t-2 border-l-2 ${borderCls}`} />
       <span className={`absolute -top-1 -right-1 w-4 h-4 border-t-2 border-r-2 ${borderCls}`} />
       <span className={`absolute -bottom-1 -left-1 w-4 h-4 border-b-2 border-l-2 ${borderCls}`} />
       <span className={`absolute -bottom-1 -right-1 w-4 h-4 border-b-2 border-r-2 ${borderCls}`} />
 
       <p className={`font-arcade text-[10px] ${accent} tracking-widest`}>{cornerLabel}</p>
+
       <div className="mt-3 flex justify-center">
-        <CryptoPortrait crypto={fighter} size="xl" corner={side === "left" ? "red" : "blue"} />
+        <FighterPortrait fighter={fighter} size="2xl" corner={side === "left" ? "red" : "blue"} />
       </div>
-      <p className={`font-arcade text-2xl sm:text-3xl mt-3 ${color}`}>{fighter.ticker}</p>
-      <p className="font-terminal text-lg sm:text-xl mt-1">{fighter.name}</p>
+
+      <p className={`font-arcade text-xl sm:text-2xl mt-3 ${color}`}>{token || "—"}</p>
+      <p className="font-terminal text-base sm:text-lg mt-0.5">{fighter.name}</p>
       <p className="font-terminal text-sm text-muted-foreground italic mt-1">
         &quot;{fighter.tagline}&quot;
       </p>
 
-      {/* archetype */}
       <p className={`font-arcade text-[9px] mt-3 ${accent}/80`}>
         {fighter.archetype.toUpperCase()}
       </p>
-
-      {/* stats */}
-      <div className="mt-3 space-y-1 text-left">
-        <StatLine label="HODL" value={fighter.stats.hodl} bar={bar} />
-        <StatLine label="HYPE" value={fighter.stats.hype} bar={bar} />
-        <StatLine label="UTIL" value={fighter.stats.utility} bar={bar} />
-      </div>
-    </div>
-  );
-}
-
-function StatLine({ label, value, bar }: { label: string; value: number; bar: string }) {
-  return (
-    <div className="flex items-center gap-2">
-      <span className="font-arcade text-[9px] text-muted-foreground w-9">{label}</span>
-      <div className="flex-1 h-1.5 rounded bg-muted/60 overflow-hidden">
-        <div className={`h-full ${bar} transition-[width]`} style={{ width: `${value}%` }} />
-      </div>
-      <span className="font-arcade text-[9px] w-6 text-right tabular-nums">{value}</span>
     </div>
   );
 }

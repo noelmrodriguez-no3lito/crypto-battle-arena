@@ -2,11 +2,11 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { getCrypto, type CryptoCharacter } from "@/data/cryptos";
+import { getFighter, type Fighter } from "@/data/fighters";
 import { useMatch } from "@/lib/use-match";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CryptoPortrait } from "@/components/crypto-portrait";
+import { FighterPortrait } from "@/components/fighter-portrait";
 import type { Phase } from "@/lib/match";
 
 const PHASES: { key: Phase; label: string }[] = [
@@ -40,8 +40,8 @@ export default function SpectatePage() {
     if (state.phase === "results") router.push("/results");
   }, [state.phase, router]);
 
-  const p1 = state.p1.cryptoId ? getCrypto(state.p1.cryptoId) : null;
-  const p2 = state.p2.cryptoId ? getCrypto(state.p2.cryptoId) : null;
+  const p1 = getFighter(state.p1.fighterId);
+  const p2 = getFighter(state.p2.fighterId);
   const pot = state.wager.p1.amount + state.wager.p2.amount;
   const wagersLocked = state.wager.p1.locked && state.wager.p2.locked;
   const currentPhaseIdx = PHASES.findIndex((p) => p.key === state.phase);
@@ -104,6 +104,7 @@ export default function SpectatePage() {
           <div className="grid grid-cols-[1fr_auto_1fr] items-stretch gap-3 sm:gap-5">
             <CornerCard
               char={p1}
+              token={state.p1.tokenName}
               side="left"
               ready={state.p1.ready}
               wager={state.wager.p1.amount}
@@ -126,6 +127,7 @@ export default function SpectatePage() {
             </div>
             <CornerCard
               char={p2}
+              token={state.p2.tokenName}
               side="right"
               ready={state.p2.ready}
               wager={state.wager.p2.amount}
@@ -169,13 +171,15 @@ export default function SpectatePage() {
 
 function CornerCard({
   char,
+  token,
   side,
   ready,
   wager,
   wagerLocked,
   showWager,
 }: {
-  char: CryptoCharacter | null | undefined;
+  char: Fighter | null | undefined;
+  token: string;
   side: "left" | "right";
   ready: boolean;
   wager: number;
@@ -189,19 +193,18 @@ function CornerCard({
 
   return (
     <div className={`relative rounded-md border-2 ${borderCls} bg-background/40 p-3 sm:p-4`}>
-      {/* corner notches */}
       <span className={`absolute top-0 ${side === "left" ? "left-0" : "right-0"} w-2.5 h-2.5 border-t-2 ${side === "left" ? "border-l-2" : "border-r-2"} ${borderCls}`} />
       <span className={`absolute bottom-0 ${side === "left" ? "right-0" : "left-0"} w-2.5 h-2.5 border-b-2 ${side === "left" ? "border-r-2" : "border-l-2"} ${borderCls}`} />
 
       <p className={`font-arcade text-[9px] ${accent} tracking-widest`}>{cornerLabel}</p>
 
       <div className="mt-2 flex justify-center">
-        <CryptoPortrait crypto={char} size="md" corner={side === "left" ? "red" : "blue"} />
+        <FighterPortrait fighter={char} size="md" corner={side === "left" ? "red" : "blue"} />
       </div>
 
       {char ? (
         <>
-          <p className={`font-arcade text-xl sm:text-2xl mt-2 ${color}`}>{char.ticker}</p>
+          <p className={`font-arcade text-xl sm:text-2xl mt-2 ${color}`}>{token || char.name}</p>
           <p className="font-terminal text-base text-muted-foreground truncate">{char.name}</p>
           <p className="font-terminal text-sm text-muted-foreground/70 italic truncate mt-0.5">
             {char.tagline}

@@ -29,8 +29,8 @@ const SSR_INITIAL: MatchState = {
   matchId: "------",
   hostRole: null,
   phase: "lobby",
-  p1: { cryptoId: null, ready: false },
-  p2: { cryptoId: null, ready: false },
+  p1: { fighterId: null, tokenName: "", ready: false },
+  p2: { fighterId: null, tokenName: "", ready: false },
   wager: {
     p1: { amount: 10, locked: false },
     p2: { amount: 10, locked: false },

@@ -35,12 +35,20 @@ export type WagerSide = {
   locked: boolean;
 };
 
+export type PlayerSide = {
+  /** Which fighter from FIGHTER_ROSTER the player picked. */
+  fighterId: string | null;
+  /** The token / coin name they're representing this match (free-text). */
+  tokenName: string;
+  ready: boolean;
+};
+
 export type MatchState = {
   matchId: string;
   hostRole: Role | null;
   phase: Phase;
-  p1: { cryptoId: string | null; ready: boolean };
-  p2: { cryptoId: string | null; ready: boolean };
+  p1: PlayerSide;
+  p2: PlayerSide;
   wager: { p1: WagerSide; p2: WagerSide };
   battle: {
     startedAt: number | null;
@@ -57,7 +65,9 @@ export type MatchState = {
   updatedAt: number;
 };
 
-export const STORAGE_KEY = "cba:match";
+// v2: state shape changed when fighters were decoupled from coin identity.
+// Older v1 snapshots are silently dropped on load.
+export const STORAGE_KEY = "cba:match:v2";
 export const CHANNEL_NAME = "cba:channel";
 export const ROLE_KEY = "cba:role";
 export const WALLET_KEY = (role: "p1" | "p2") => `cba:wallet:${role}`;
@@ -75,8 +85,8 @@ export function makeInitialState(matchId: string = randomMatchId()): MatchState 
     matchId,
     hostRole: null,
     phase: "lobby",
-    p1: { cryptoId: null, ready: false },
-    p2: { cryptoId: null, ready: false },
+    p1: { fighterId: null, tokenName: "", ready: false },
+    p2: { fighterId: null, tokenName: "", ready: false },
     wager: {
       p1: { amount: 10, locked: false },
       p2: { amount: 10, locked: false },
@@ -106,7 +116,8 @@ function randomMatchId(): string {
 export type Action =
   | { type: "RESET" }
   | { type: "CLAIM_ROLE"; role: Role }
-  | { type: "PICK_CRYPTO"; role: "p1" | "p2"; cryptoId: string }
+  | { type: "PICK_FIGHTER"; role: "p1" | "p2"; fighterId: string }
+  | { type: "SET_TOKEN"; role: "p1" | "p2"; tokenName: string }
   | { type: "READY"; role: "p1" | "p2"; ready: boolean }
   | { type: "ENTER_STAKES" }
   | { type: "SET_WAGER"; role: "p1" | "p2"; amount: number }
@@ -133,11 +144,20 @@ export function reduce(state: MatchState, action: Action): MatchState {
         hostRole: state.hostRole ?? action.role,
       });
 
-    case "PICK_CRYPTO":
+    case "PICK_FIGHTER":
       return stamp({
         ...state,
         phase: "select",
-        [action.role]: { ...state[action.role], cryptoId: action.cryptoId },
+        [action.role]: { ...state[action.role], fighterId: action.fighterId },
+      });
+
+    case "SET_TOKEN":
+      return stamp({
+        ...state,
+        [action.role]: {
+          ...state[action.role],
+          tokenName: action.tokenName.slice(0, 12).toUpperCase(),
+        },
       });
 
     case "READY":
@@ -147,7 +167,8 @@ export function reduce(state: MatchState, action: Action): MatchState {
       });
 
     case "ENTER_STAKES":
-      if (!state.p1.cryptoId || !state.p2.cryptoId) return state;
+      if (!state.p1.fighterId || !state.p2.fighterId) return state;
+      if (!state.p1.tokenName || !state.p2.tokenName) return state;
       return stamp({ ...state, phase: "stakes" });
 
     case "SET_WAGER":
@@ -170,7 +191,7 @@ export function reduce(state: MatchState, action: Action): MatchState {
       });
 
     case "ENTER_VS":
-      if (!state.p1.cryptoId || !state.p2.cryptoId) return state;
+      if (!state.p1.fighterId || !state.p2.fighterId) return state;
       if (!state.wager.p1.locked || !state.wager.p2.locked) return state;
       if (state.wager.p1.amount !== state.wager.p2.amount) return state;
       return stamp({ ...state, phase: "vs" });
@@ -286,6 +307,8 @@ function isValidMatchState(s: unknown): s is MatchState {
     typeof m.phase === "string" &&
     !!m.p1 &&
     !!m.p2 &&
+    "fighterId" in m.p1 &&
+    "tokenName" in m.p1 &&
     !!m.wager &&
     !!m.wager.p1 &&
     !!m.wager.p2 &&

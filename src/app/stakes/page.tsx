@@ -2,11 +2,13 @@
 
 import { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { getFighter } from "@/data/fighters";
+import Image from "next/image";
+import { getFighter, type Fighter } from "@/data/fighters";
 import { useMatch } from "@/lib/use-match";
 import { WAGER_CHIPS, getWallet } from "@/lib/match";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ArenaBackdrop, BroadcastTicker } from "@/components/broadcast";
 
 export default function StakesPage() {
   const router = useRouter();
@@ -36,15 +38,13 @@ export default function StakesPage() {
 
   const p1Char = getFighter(state.p1.fighterId);
   const p2Char = getFighter(state.p2.fighterId);
-  const myToken = role === "p1" ? state.p1.tokenName : role === "p2" ? state.p2.tokenName : "";
-  const oppToken = role === "p1" ? state.p2.tokenName : role === "p2" ? state.p1.tokenName : "";
 
   const myBalance = useMemo(() => {
     if (!hydrated || (role !== "p1" && role !== "p2")) return 0;
     return getWallet(role);
   }, [hydrated, role, state.matchId]);
 
-  if (!hydrated || (role !== "p1" && role !== "p2")) {
+  if (!hydrated || (role !== "p1" && role !== "p2") || !p1Char || !p2Char) {
     return (
       <main className="flex-1 flex items-center justify-center">
         <p className="font-terminal text-xl">Loading…</p>
@@ -53,8 +53,8 @@ export default function StakesPage() {
   }
 
   const myWager = state.wager[role];
-  const oppWager = role === "p1" ? state.wager.p2 : state.wager.p1;
   const oppRole: "p1" | "p2" = role === "p1" ? "p2" : "p1";
+  const oppWager = state.wager[oppRole];
   const matched = state.wager.p1.amount === state.wager.p2.amount;
   const pot = state.wager.p1.amount + state.wager.p2.amount;
   const canAfford = myBalance >= myWager.amount;
@@ -69,213 +69,219 @@ export default function StakesPage() {
     send({ type: "LOCK_WAGER", role, locked: !myWager.locked });
   };
 
-  const meColor = role === "p1" ? "red" : "blue";
-  const oppColor = oppRole === "p1" ? "red" : "blue";
-
   return (
-    <main className="arena-haze flex-1 flex items-center justify-center px-4 sm:px-6 py-10 overflow-hidden">
-      <div className="w-full max-w-3xl space-y-6">
-        <header className="text-center space-y-2">
-          <p
-            className={`font-arcade text-xs tracking-[0.3em] ${role === "p1" ? "glow-red" : "glow-blue"} animate-flicker`}
-          >
-            {role.toUpperCase()} · PLACE YOUR WAGER
-          </p>
-          <h1 className="font-arcade text-3xl sm:text-4xl glow-yellow text-chromatic">
-            STAKES
-          </h1>
-          <p className="font-terminal text-base text-muted-foreground">
-            Both fighters must match wagers to enter the ring. Winner takes the pot.
-          </p>
-        </header>
+    <main className="relative flex-1 flex flex-col overflow-hidden">
+      <ArenaBackdrop variant="dim" />
 
-        {/* POT SHOWCASE */}
-        <div
-          className={`relative rounded-md border-2 backdrop-blur-sm p-5 sm:p-7 text-center overflow-hidden ${
-            matched
-              ? "border-neon-green ring-glow-green bg-neon-green/[0.06]"
-              : "border-neon-yellow/50 bg-neon-yellow/[0.03]"
-          }`}
-        >
-          {/* corner brackets */}
-          <span className={`absolute -top-1 -left-1 w-3 h-3 border-t-2 border-l-2 ${matched ? "border-neon-green" : "border-neon-yellow"}`} />
-          <span className={`absolute -top-1 -right-1 w-3 h-3 border-t-2 border-r-2 ${matched ? "border-neon-green" : "border-neon-yellow"}`} />
-          <span className={`absolute -bottom-1 -left-1 w-3 h-3 border-b-2 border-l-2 ${matched ? "border-neon-green" : "border-neon-yellow"}`} />
-          <span className={`absolute -bottom-1 -right-1 w-3 h-3 border-b-2 border-r-2 ${matched ? "border-neon-green" : "border-neon-yellow"}`} />
+      {/* TOP: event tag */}
+      <header className="text-center pt-5 sm:pt-8 px-4">
+        <p className="font-arcade text-[10px] text-neon-yellow animate-flicker tracking-[0.5em]">
+          ▷ THE BOOKMAKER ◁
+        </p>
+        <h1 className="font-arcade text-3xl sm:text-4xl glow-yellow mt-2">STAKES</h1>
+      </header>
 
-          <p className="font-arcade text-[10px] text-muted-foreground tracking-[0.4em]">
-            {matched ? "▷ POT LOCKED ◁" : "POT IF MATCHED"}
-          </p>
-          <p
-            className={`font-arcade text-5xl sm:text-6xl mt-3 tabular-nums leading-none ${
-              matched ? "glow-green animate-pulse-glow" : "glow-yellow"
-            }`}
-          >
-            💰 {pot}
-          </p>
-          <p className="font-arcade text-[10px] text-muted-foreground mt-2 tracking-widest">
-            WINNER TAKES ALL · PXL
-          </p>
-        </div>
+      <section className="flex-1 grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-4 sm:gap-6 px-4 sm:px-8 py-6 sm:py-8 items-stretch">
+        {/* P1 tale of the tape */}
+        <TaleOfTheTape
+          fighter={role === "p1" ? p1Char : p2Char}
+          token={role === "p1" ? state.p1.tokenName : state.p2.tokenName}
+          wager={myWager.amount}
+          balance={myBalance}
+          locked={myWager.locked}
+          side="left"
+          you
+        />
 
-        {/* WALLET + WAGER GRID */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* My panel */}
+        {/* CENTER: pot */}
+        <div className="flex flex-col items-center justify-center min-w-[180px] sm:min-w-[220px] gap-4">
+          <p className="font-arcade text-[10px] tracking-widest text-muted-foreground">
+            {matched ? "POT LOCKED" : "POT IF MATCHED"}
+          </p>
           <div
-            className={`relative rounded-md border-2 backdrop-blur-sm p-4 space-y-3 ${
-              meColor === "red" ? "border-neon-red/50 bg-neon-red/[0.03]" : "border-neon-blue/50 bg-neon-blue/[0.03]"
+            className={`relative rounded-full w-32 h-32 sm:w-40 sm:h-40 grid place-items-center border-4 ${
+              matched ? "border-neon-green ring-glow-green animate-pulse-glow" : "border-neon-yellow/60"
             }`}
+            style={{
+              background:
+                "radial-gradient(circle at 30% 30%, rgba(255,230,0,0.18), transparent 60%)",
+            }}
           >
-            <div className="flex items-center justify-between">
-              <span
-                className={`font-arcade text-xs ${meColor === "red" ? "glow-red" : "glow-blue"}`}
-              >
-                YOU ({role.toUpperCase()})
-              </span>
-              <Badge variant="outline" className="font-arcade text-[10px]">
-                💰 {myBalance} PXL
-              </Badge>
-            </div>
-            {p1Char && p2Char && (
-              <p className="font-terminal text-base text-muted-foreground">
-                Repping <span className="text-foreground font-bold">{myToken}</span>
-              </p>
-            )}
-
-            <div className="grid grid-cols-3 gap-2">
-              {WAGER_CHIPS.map((chip) => {
-                const disabled = chip > myBalance || myWager.locked;
-                const selected = myWager.amount === chip;
-                return (
-                  <Chip
-                    key={chip}
-                    label={String(chip)}
-                    onClick={() => setWager(chip)}
-                    disabled={disabled}
-                    selected={selected}
-                    corner={meColor}
-                  />
-                );
-              })}
-              <button
-                onClick={() => setWager(myBalance)}
-                disabled={myWager.locked || myBalance === 0}
-                className={`relative rounded-md py-3 font-arcade text-xs border-2 transition-all col-span-3
-                  ${myWager.amount === myBalance && myBalance > 0
-                    ? "border-neon-yellow bg-neon-yellow/15 glow-yellow ring-1 ring-neon-yellow/40"
-                    : "border-border hover:border-foreground/40"}
-                  ${myWager.locked || myBalance === 0 ? "opacity-30 cursor-not-allowed" : ""}
-                `}
-              >
-                ALL IN ({myBalance})
-              </button>
-            </div>
-
-            <Button
-              onClick={toggleLock}
-              disabled={!canAfford && !myWager.locked}
-              className={`w-full font-arcade text-xs h-12 ${
-                myWager.locked
-                  ? "bg-neon-green/90 hover:bg-neon-green text-black shadow-[0_0_18px_rgba(57,255,122,0.55)]"
-                  : ""
-              }`}
+            <span
+              className={`font-arcade text-3xl sm:text-4xl tabular-nums leading-none ${matched ? "glow-green" : "glow-yellow"}`}
             >
-              {myWager.locked
-                ? `✓ LOCKED · ${myWager.amount} PXL`
-                : canAfford
-                ? `LOCK IN ${myWager.amount} PXL`
-                : "INSUFFICIENT FUNDS"}
-            </Button>
+              {pot}
+            </span>
+            <span className="font-arcade text-[9px] text-muted-foreground tracking-widest absolute bottom-3">
+              PXL
+            </span>
           </div>
+          <p className="font-arcade text-[9px] text-muted-foreground tracking-widest text-center max-w-[180px]">
+            WINNER TAKES ALL · POT REFUNDED ON TIE
+          </p>
 
-          {/* Opponent panel */}
-          <div
-            className={`relative rounded-md border-2 backdrop-blur-sm p-4 space-y-3 ${
-              oppColor === "red" ? "border-neon-red/50 bg-neon-red/[0.03]" : "border-neon-blue/50 bg-neon-blue/[0.03]"
+          {state.wager.p1.locked && state.wager.p2.locked && !matched && (
+            <p className="font-terminal text-base text-neon-red text-center animate-flicker">
+              ⚠ wagers don&apos;t match
+            </p>
+          )}
+        </div>
+
+        {/* P2 / opponent tale of the tape */}
+        <TaleOfTheTape
+          fighter={role === "p1" ? p2Char : p1Char}
+          token={role === "p1" ? state.p2.tokenName : state.p1.tokenName}
+          wager={oppWager.amount}
+          balance={null}
+          locked={oppWager.locked}
+          side="right"
+        />
+      </section>
+
+      {/* BOTTOM: bet slip */}
+      <section className="border-t-2 border-neon-yellow/40 bg-neon-yellow/[0.03] px-4 sm:px-8 py-4">
+        <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr_auto] gap-4 items-center">
+          <p className="font-arcade text-[10px] text-neon-yellow tracking-widest">
+            ▶ YOUR SLIP · BALANCE {myBalance} PXL
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {WAGER_CHIPS.map((chip) => {
+              const disabled = chip > myBalance || myWager.locked;
+              const selected = myWager.amount === chip;
+              return (
+                <button
+                  key={chip}
+                  onClick={() => setWager(chip)}
+                  disabled={disabled}
+                  className={`relative font-arcade text-xs rounded h-10 px-3 border-2 transition-all
+                    ${selected
+                      ? role === "p1"
+                        ? "border-neon-red bg-neon-red/15 text-neon-red ring-glow-red"
+                        : "border-neon-blue bg-neon-blue/15 text-neon-blue ring-glow-blue"
+                      : "border-border bg-card/60 hover:border-foreground/40"}
+                    ${disabled ? "opacity-30 cursor-not-allowed" : ""}`}
+                >
+                  {chip}
+                </button>
+              );
+            })}
+            <button
+              onClick={() => setWager(myBalance)}
+              disabled={myWager.locked || myBalance === 0}
+              className={`font-arcade text-xs rounded h-10 px-3 border-2 transition-all
+                ${myWager.amount === myBalance && myBalance > 0
+                  ? "border-neon-yellow bg-neon-yellow/15 glow-yellow"
+                  : "border-border hover:border-foreground/40"}
+                ${myWager.locked || myBalance === 0 ? "opacity-30 cursor-not-allowed" : ""}`}
+            >
+              ALL IN ({myBalance})
+            </button>
+          </div>
+          <Button
+            onClick={toggleLock}
+            disabled={!canAfford && !myWager.locked}
+            className={`font-arcade text-xs h-12 px-6 ${
+              myWager.locked
+                ? "bg-neon-green/90 hover:bg-neon-green text-black shadow-[0_0_22px_rgba(57,255,122,0.6)]"
+                : ""
             }`}
           >
-            <div className="flex items-center justify-between">
-              <span
-                className={`font-arcade text-xs ${oppColor === "red" ? "glow-red" : "glow-blue"}`}
-              >
-                OPPONENT ({oppRole.toUpperCase()})
-              </span>
-              {oppWager.locked ? (
-                <Badge className="font-arcade text-[10px] bg-neon-green/90 text-black">
-                  ✓ LOCKED
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="font-arcade text-[10px] animate-flicker">
-                  CHOOSING…
-                </Badge>
-              )}
-            </div>
-            {p1Char && p2Char && (
-              <p className="font-terminal text-base text-muted-foreground">
-                Repping <span className="text-foreground font-bold">{oppToken}</span>
-              </p>
-            )}
-            <div className="rounded-md border border-border p-6 text-center bg-muted/30 relative overflow-hidden">
-              {!oppWager.locked && (
-                <div className="absolute inset-0 opacity-40 [background:repeating-linear-gradient(45deg,transparent_0,transparent_8px,rgba(255,255,255,0.04)_8px,rgba(255,255,255,0.04)_16px)]" />
-              )}
-              <p className="font-arcade text-[10px] text-muted-foreground tracking-widest relative">
-                WAGER
-              </p>
-              <p className="font-arcade text-4xl mt-2 tabular-nums relative">{oppWager.amount} PXL</p>
-            </div>
-
-            {state.wager.p1.locked && state.wager.p2.locked && !matched && (
-              <p className="font-terminal text-base text-neon-red text-center animate-flicker">
-                ⚠ Wagers don&apos;t match — adjust to continue
-              </p>
-            )}
-            {matched && state.wager.p1.locked && state.wager.p2.locked && (
-              <p className="font-terminal text-base text-neon-green text-center animate-pulse-glow">
-                ▶ Entering arena…
-              </p>
-            )}
-          </div>
+            {myWager.locked
+              ? `✓ LOCKED · ${myWager.amount} PXL`
+              : canAfford
+              ? `LOCK IN ${myWager.amount} PXL`
+              : "INSUFFICIENT FUNDS"}
+          </Button>
         </div>
-      </div>
+      </section>
+
+      <BroadcastTicker
+        items={[
+          `POT · ${pot} PXL`,
+          state.wager.p1.locked ? `P1 LOCKED · ${state.wager.p1.amount}` : "P1 STILL CHOOSING",
+          state.wager.p2.locked ? `P2 LOCKED · ${state.wager.p2.amount}` : "P2 STILL CHOOSING",
+          matched && state.wager.p1.locked && state.wager.p2.locked ? "▶ ENTERING ARENA" : "WAGERS MUST MATCH TO ENTER",
+        ]}
+        accent="yellow"
+      />
     </main>
   );
 }
 
-function Chip({
-  label,
-  onClick,
-  disabled,
-  selected,
-  corner,
+/* ───────────────────────── Tale of the tape ───────────────────────────── */
+
+function TaleOfTheTape({
+  fighter,
+  token,
+  wager,
+  balance,
+  locked,
+  side,
+  you = false,
 }: {
-  label: string;
-  onClick: () => void;
-  disabled: boolean;
-  selected: boolean;
-  corner: "red" | "blue";
+  fighter: Fighter;
+  token: string;
+  wager: number;
+  balance: number | null;
+  locked: boolean;
+  side: "left" | "right";
+  you?: boolean;
 }) {
-  const selectedCls =
-    corner === "red"
-      ? "border-neon-red bg-neon-red/15 ring-glow-red"
-      : "border-neon-blue bg-neon-blue/15 ring-glow-blue";
+  const cornerLabel = side === "left" ? "RED CORNER" : "BLUE CORNER";
+  const accentBg = side === "left" ? "bg-neon-red" : "bg-neon-blue";
+  const accent = side === "left" ? "text-neon-red" : "text-neon-blue";
+  const borderCls = side === "left" ? "border-neon-red/60" : "border-neon-blue/60";
+  const glow = side === "left" ? "glow-red" : "glow-blue";
 
   return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={`relative rounded-full aspect-square font-arcade text-sm border-2 transition-all
-        flex items-center justify-center
-        ${selected ? selectedCls : "border-border hover:border-foreground/40 bg-card"}
-        ${disabled ? "opacity-30 cursor-not-allowed" : ""}
-      `}
-    >
-      <span
-        className={`absolute inset-1 rounded-full border border-dashed ${
-          selected ? "border-foreground/40" : "border-border/60"
-        } pointer-events-none`}
-      />
-      <span className="relative">{label}</span>
-    </button>
+    <div className={`relative rounded-md border-2 ${borderCls} bg-card/70 overflow-hidden`}>
+      <div className={`absolute top-0 left-0 right-0 h-1 ${accentBg}`} />
+
+      <div className="grid grid-cols-[1fr_1.1fr] gap-0">
+        <div
+          className="relative aspect-square"
+          style={{ background: `radial-gradient(circle, ${fighter.color}40, transparent 70%)` }}
+        >
+          <Image src={fighter.portrait} alt={fighter.name} fill sizes="320px" className="object-contain" />
+        </div>
+
+        <div className="p-3 sm:p-4 flex flex-col gap-2 sm:gap-3">
+          <div className="flex items-center justify-between">
+            <p className={`font-arcade text-[9px] ${accent} tracking-widest`}>
+              {cornerLabel} {you && "· YOU"}
+            </p>
+            {locked ? (
+              <Badge className="font-arcade text-[9px] bg-neon-green/90 text-black">LOCKED</Badge>
+            ) : (
+              <Badge variant="outline" className="font-arcade text-[9px] animate-flicker">CHOOSING</Badge>
+            )}
+          </div>
+
+          <p className={`font-arcade text-2xl sm:text-3xl ${glow} leading-none`}>
+            {token || fighter.name.toUpperCase()}
+          </p>
+          <p className="font-terminal text-sm text-muted-foreground truncate">
+            {fighter.name} · <span className="italic">{fighter.archetype}</span>
+          </p>
+
+          <dl className="grid grid-cols-2 gap-x-3 gap-y-1 font-arcade text-[10px] tracking-widest mt-1">
+            <dt className="text-muted-foreground">PWR</dt>
+            <dd className="text-right tabular-nums">{fighter.stats.power}</dd>
+            <dt className="text-muted-foreground">SPD</dt>
+            <dd className="text-right tabular-nums">{fighter.stats.speed}</dd>
+            <dt className="text-muted-foreground">TEC</dt>
+            <dd className="text-right tabular-nums">{fighter.stats.technique}</dd>
+            <dt className="text-muted-foreground">WAGER</dt>
+            <dd className="text-right tabular-nums">{wager}</dd>
+            {balance !== null && (
+              <>
+                <dt className="text-muted-foreground">PURSE</dt>
+                <dd className="text-right tabular-nums">{balance}</dd>
+              </>
+            )}
+          </dl>
+        </div>
+      </div>
+    </div>
   );
 }

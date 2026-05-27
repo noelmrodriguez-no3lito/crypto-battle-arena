@@ -2,18 +2,20 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { FIGHTER_ROSTER, getFighter, type Fighter } from "@/data/fighters";
 import { useMatch } from "@/lib/use-match";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { FighterPortrait } from "@/components/fighter-portrait";
+import { ArenaBackdrop, BroadcastTicker, SponsorStrip } from "@/components/broadcast";
 
 const TOKEN_SUGGESTIONS = ["BTC", "ETH", "SOL", "DOGE", "XRP", "ADA", "BNB", "LINK", "PEPE", "TRUMP"];
 
 export default function SelectPage() {
   const router = useRouter();
   const { state, role, send } = useMatch();
+  const [hoverId, setHoverId] = useState<string | null>(null);
 
   useEffect(() => {
     if (role === "audience") router.push("/spectate");
@@ -46,40 +48,33 @@ export default function SelectPage() {
   const oppFighter = getFighter(opp.fighterId);
   const meColor: "red" | "blue" = role === "p1" ? "red" : "blue";
   const oppCornerColor: "red" | "blue" = role === "p1" ? "blue" : "red";
-  const oppRoleLabel = role === "p1" ? "P2" : "P1";
+
+  // Focused fighter: hover takes precedence; otherwise the player's pick; otherwise none.
+  const focused: Fighter | undefined =
+    (hoverId && getFighter(hoverId)) || myFighter || undefined;
 
   const pickFighter = (f: Fighter) => {
+    if (myReady) return;
     send({ type: "PICK_FIGHTER", role, fighterId: f.id });
   };
-
-  const setToken = (raw: string) => {
-    send({ type: "SET_TOKEN", role, tokenName: raw });
-  };
-
+  const setToken = (raw: string) => send({ type: "SET_TOKEN", role, tokenName: raw });
   const toggleReady = () => {
-    if (!me.fighterId || !me.tokenName) return;
+    if (!me.fighterId || me.tokenName.length < 2) return;
     send({ type: "READY", role, ready: !myReady });
   };
-
   const canReady = !!me.fighterId && me.tokenName.length >= 2;
 
   return (
-    <main className="arena-haze flex-1 flex flex-col px-4 sm:px-6 py-6 gap-6">
-      {/* HEADER */}
-      <header className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <p
-            className={`font-arcade text-xs tracking-widest ${
-              role === "p1" ? "glow-red text-neon-red" : "glow-blue text-neon-blue"
-            }`}
-          >
-            {role.toUpperCase()} · CHOOSE YOUR FIGHTER
-          </p>
-          <p className="font-terminal text-base text-muted-foreground mt-1">
-            Match {state.matchId} · opponent {opp.fighterId ? "PICKED" : "selecting…"}
-          </p>
-        </div>
+    <main className="relative flex-1 flex flex-col overflow-hidden">
+      <ArenaBackdrop variant="dim" />
+
+      {/* TOP STRIP: role / opponent status */}
+      <header className="flex items-center justify-between px-4 sm:px-6 pt-4 gap-3 flex-wrap">
+        <SponsorStrip side={meColor} token={me.tokenName || "TBD"} />
         <div className="flex gap-2 items-center">
+          <span className="font-arcade text-[10px] text-muted-foreground tracking-widest">
+            OPPONENT {opp.fighterId ? "PICKED" : "SELECTING"}
+          </span>
           {state.p1.ready && (
             <Badge variant="outline" className="font-arcade text-[10px] border-neon-red/70 text-neon-red">
               P1 READY
@@ -90,225 +85,259 @@ export default function SelectPage() {
               P2 READY
             </Badge>
           )}
-          <Button
-            onClick={toggleReady}
-            disabled={!canReady}
-            className={`font-arcade text-xs h-11 px-5 ${
-              myReady
-                ? "bg-neon-green/90 hover:bg-neon-green text-black shadow-[0_0_18px_rgba(57,255,122,0.55)]"
-                : ""
-            }`}
-          >
-            {myReady ? "✓ READY" : "READY UP"}
-          </Button>
         </div>
       </header>
 
-      {/* MATCHUP PREVIEW */}
-      <div className="rounded-md border border-border bg-card/50 backdrop-blur-sm p-3 sm:p-5">
-        <p className="font-arcade text-[10px] text-muted-foreground text-center mb-3 tracking-widest">
-          ▾ CURRENT MATCHUP ▾
-        </p>
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 sm:gap-5">
-          <MatchupCard
-            fighter={myFighter}
-            tokenName={me.tokenName}
-            cornerColor={meColor}
-            label={`${role.toUpperCase()} (YOU)`}
-            ready={myReady}
-          />
-          <p className="font-arcade text-2xl sm:text-3xl text-muted-foreground">vs</p>
-          <MatchupCard
-            fighter={oppFighter}
-            tokenName={opp.tokenName}
-            cornerColor={oppCornerColor}
-            label={oppRoleLabel}
-            ready={opp.ready}
-          />
-        </div>
-      </div>
+      {/* MAIN: featured | roster */}
+      <section className="flex-1 grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-4 sm:gap-6 px-4 sm:px-6 py-5 min-h-0">
+        {/* FEATURED FIGHTER */}
+        <FeaturedPanel
+          fighter={focused}
+          tokenName={me.tokenName}
+          isMine={!!myFighter && focused?.id === myFighter.id}
+          oppFighterId={opp.fighterId}
+          cornerColor={meColor}
+        />
 
-      {/* TOKEN INPUT */}
-      <div
-        className={`rounded-md border-2 backdrop-blur-sm p-4 ${
-          meColor === "red" ? "border-neon-red/50 bg-neon-red/[0.03]" : "border-neon-blue/50 bg-neon-blue/[0.03]"
-        }`}
-      >
-        <p className={`font-arcade text-[10px] tracking-widest mb-2 ${meColor === "red" ? "glow-red" : "glow-blue"}`}>
-          ▷ WHICH COIN ARE YOU REPPING?
-        </p>
-        <div className="flex flex-col sm:flex-row gap-3 items-stretch">
-          <Input
-            value={me.tokenName}
-            onChange={(e) => setToken(e.target.value)}
-            placeholder="BTC, ETH, $MOON, ANYTHING…"
-            maxLength={12}
-            className="font-arcade text-lg flex-1 tracking-widest"
-            disabled={myReady}
-          />
-          <div className="flex flex-wrap gap-1.5">
-            {TOKEN_SUGGESTIONS.map((t) => (
-              <button
-                key={t}
-                onClick={() => setToken(t)}
-                disabled={myReady}
-                className={`font-arcade text-[10px] px-2 py-1 rounded border transition-all ${
-                  me.tokenName === t
-                    ? meColor === "red"
-                      ? "border-neon-red bg-neon-red/15 text-neon-red"
-                      : "border-neon-blue bg-neon-blue/15 text-neon-blue"
-                    : "border-border text-muted-foreground hover:border-foreground/40"
-                } ${myReady ? "opacity-40 cursor-not-allowed" : ""}`}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
-        </div>
-        <p className="font-terminal text-sm text-muted-foreground mt-2">
-          The coin you&apos;re defending. Can be real (BTC, ETH) or anything you want to argue for.
-        </p>
-      </div>
+        {/* ROSTER STRIP */}
+        <div className="space-y-3 min-h-0 flex flex-col">
+          <p className="font-arcade text-[10px] text-muted-foreground tracking-widest">
+            ROSTER · {FIGHTER_ROSTER.length} FIGHTERS
+          </p>
+          <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 gap-2 overflow-y-auto pr-1 min-h-0">
+            {FIGHTER_ROSTER.map((f) => {
+              const taken = state.p1.fighterId === f.id || state.p2.fighterId === f.id;
+              const mine = me.fighterId === f.id;
+              const takenBy = state.p1.fighterId === f.id ? "p1" : state.p2.fighterId === f.id ? "p2" : null;
 
-      {/* ROSTER */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-        {FIGHTER_ROSTER.map((f) => {
-          const taken = state.p1.fighterId === f.id || state.p2.fighterId === f.id;
-          const mine = me.fighterId === f.id;
-          const takenBy = state.p1.fighterId === f.id ? "p1" : state.p2.fighterId === f.id ? "p2" : null;
-
-          return (
-            <button
-              key={f.id}
-              onClick={() => (!taken || mine) && !myReady ? pickFighter(f) : null}
-              disabled={(taken && !mine) || myReady}
-              className={`group relative text-left bg-card/80 backdrop-blur-sm border-2 rounded-md p-3 sm:p-4 transition-all overflow-hidden
-                ${
-                  mine
-                    ? role === "p1"
-                      ? "border-neon-red ring-glow-red"
-                      : "border-neon-blue ring-glow-blue"
-                    : "border-border hover:border-foreground/40"
-                }
-                ${taken && !mine ? "opacity-30 cursor-not-allowed grayscale" : ""}
-                ${myReady && mine ? "" : ""}
-              `}
-            >
-              {takenBy && (
-                <div
-                  className={`absolute top-0 left-0 right-0 h-1 ${
-                    takenBy === "p1" ? "bg-neon-red" : "bg-neon-blue"
-                  }`}
-                />
-              )}
-
-              <div className="flex justify-center">
-                <FighterPortrait
-                  fighter={f}
-                  size="lg"
-                  corner={takenBy === "p1" ? "red" : takenBy === "p2" ? "blue" : null}
-                />
-              </div>
-
-              <div className="mt-3 flex items-center justify-between gap-2">
-                <p className={`font-arcade text-xs ${f.glowClass}`}>{f.name.toUpperCase()}</p>
-                {takenBy && (
-                  <Badge
-                    variant="outline"
-                    className={`font-arcade text-[9px] ${
-                      takenBy === "p1" ? "border-neon-red/60 text-neon-red" : "border-neon-blue/60 text-neon-blue"
-                    }`}
+              return (
+                <li key={f.id}>
+                  <button
+                    onClick={() => (!taken || mine) && pickFighter(f)}
+                    onMouseEnter={() => setHoverId(f.id)}
+                    onFocus={() => setHoverId(f.id)}
+                    onMouseLeave={() => setHoverId(null)}
+                    onBlur={() => setHoverId(null)}
+                    disabled={(taken && !mine) || myReady}
+                    className={`group relative w-full text-left rounded-md overflow-hidden border-2 transition-all
+                      ${mine
+                        ? meColor === "red" ? "border-neon-red ring-glow-red" : "border-neon-blue ring-glow-blue"
+                        : "border-border hover:border-foreground/40"}
+                      ${taken && !mine ? "opacity-30 cursor-not-allowed grayscale" : ""}
+                    `}
                   >
-                    {takenBy.toUpperCase()}
-                  </Badge>
-                )}
-              </div>
-              <p className="font-terminal text-sm text-muted-foreground italic mt-0.5">{f.tagline}</p>
+                    <div
+                      className="relative aspect-square"
+                      style={{ background: `radial-gradient(circle, ${f.color}33, transparent 70%)` }}
+                    >
+                      <Image src={f.portrait} alt={f.name} fill sizes="200px" className="object-contain" />
+                      {takenBy && (
+                        <div
+                          className={`absolute top-0 left-0 right-0 h-1 ${takenBy === "p1" ? "bg-neon-red" : "bg-neon-blue"}`}
+                        />
+                      )}
+                    </div>
+                    <div className="px-2 py-1.5 bg-card/80">
+                      <p className={`font-arcade text-[10px] ${f.glowClass} tracking-widest truncate`}>
+                        {f.name.toUpperCase()}
+                      </p>
+                      <p className="font-terminal text-[11px] text-muted-foreground truncate">
+                        {f.archetype}
+                      </p>
+                    </div>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      </section>
 
-              <div className="mt-3 space-y-1.5">
-                <StatBar label="PWR" value={f.stats.power} color={f.color} />
-                <StatBar label="SPD" value={f.stats.speed} color={f.color} />
-                <StatBar label="TEC" value={f.stats.technique} color={f.color} />
+      {/* BOTTOM: token input + ready */}
+      <section
+        className={`relative border-t-2 ${meColor === "red" ? "border-neon-red/50 bg-neon-red/[0.03]" : "border-neon-blue/50 bg-neon-blue/[0.03]"} px-4 sm:px-6 py-3 sm:py-4`}
+      >
+        <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-end">
+          <div className="flex-1 min-w-0">
+            <p className={`font-arcade text-[10px] tracking-widest mb-1.5 ${meColor === "red" ? "glow-red" : "glow-blue"}`}>
+              REPRESENTING · TYPE THE COIN YOU&apos;RE DEFENDING
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2 items-stretch">
+              <Input
+                value={me.tokenName}
+                onChange={(e) => setToken(e.target.value)}
+                placeholder="BTC · ETH · $MOON · ANYTHING"
+                maxLength={12}
+                className="font-arcade text-lg tracking-widest flex-1"
+                disabled={myReady}
+              />
+              <div className="flex flex-wrap gap-1">
+                {TOKEN_SUGGESTIONS.map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => setToken(t)}
+                    disabled={myReady}
+                    className={`font-arcade text-[10px] px-2 h-9 rounded border transition-all
+                      ${me.tokenName === t
+                        ? meColor === "red"
+                          ? "border-neon-red bg-neon-red/15 text-neon-red"
+                          : "border-neon-blue bg-neon-blue/15 text-neon-blue"
+                        : "border-border text-muted-foreground hover:border-foreground/40"}
+                      ${myReady ? "opacity-40 cursor-not-allowed" : ""}`}
+                  >
+                    {t}
+                  </button>
+                ))}
               </div>
+            </div>
+          </div>
+          <Button
+            onClick={toggleReady}
+            disabled={!canReady}
+            className={`font-arcade text-xs h-12 px-8 ${
+              myReady
+                ? "bg-neon-green/90 hover:bg-neon-green text-black shadow-[0_0_22px_rgba(57,255,122,0.6)]"
+                : ""
+            }`}
+          >
+            {myReady ? "✓ READY" : "READY UP →"}
+          </Button>
+        </div>
+      </section>
 
-              <div
-                className={`mt-3 grid grid-rows-[0fr] group-hover:grid-rows-[1fr] transition-[grid-template-rows] duration-300 ${
-                  mine ? "grid-rows-[1fr]" : ""
-                }`}
-              >
-                <div className="overflow-hidden">
-                  <p className="font-arcade text-[9px] text-muted-foreground tracking-widest mb-1">
-                    SIGNATURE MOVES
-                  </p>
-                  <ul className="space-y-0.5">
-                    {f.signatureMoves.slice(0, 3).map((m) => (
-                      <li
-                        key={m}
-                        className={`font-terminal text-sm ${f.glowClass}/80 truncate`}
-                      >
-                        ▸ {m}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            </button>
-          );
-        })}
-      </div>
+      <BroadcastTicker
+        items={[
+          `MATCH ${state.matchId}`,
+          `${state.p1.fighterId ? "P1 PICKED" : "P1 SELECTING"}`,
+          `${state.p2.fighterId ? "P2 PICKED" : "P2 SELECTING"}`,
+          "5 ROUNDS · 60s TURNS · WINNER TAKES POT",
+        ]}
+        accent={meColor === "red" ? "red" : "blue"}
+      />
     </main>
   );
 }
 
-function MatchupCard({
+/* ───────────────────────── Featured panel ───────────────────────────── */
+
+function FeaturedPanel({
   fighter,
   tokenName,
+  isMine,
+  oppFighterId,
   cornerColor,
-  label,
-  ready,
 }: {
-  fighter: Fighter | null | undefined;
+  fighter: Fighter | undefined;
   tokenName: string;
+  isMine: boolean;
+  oppFighterId: string | null;
   cornerColor: "red" | "blue";
-  label: string;
-  ready: boolean;
 }) {
+  const opp = getFighter(oppFighterId);
+
+  if (!fighter) {
+    return (
+      <div className="relative rounded-md border-2 border-dashed border-border bg-card/40 grid place-items-center min-h-[340px]">
+        <div className="text-center px-6">
+          <p className="font-arcade text-xs text-muted-foreground tracking-widest animate-flicker">
+            SELECT A FIGHTER
+          </p>
+          <p className="font-terminal text-base text-muted-foreground mt-2">
+            Pick from the roster on the right. Each fighter has their own personality.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const accent = cornerColor === "red" ? "text-neon-red" : "text-neon-blue";
-  const border = cornerColor === "red" ? "border-neon-red/60" : "border-neon-blue/60";
+  const accentBg = cornerColor === "red" ? "bg-neon-red" : "bg-neon-blue";
+  const borderCls = cornerColor === "red" ? "border-neon-red" : "border-neon-blue";
+  const glow = cornerColor === "red" ? "glow-red" : "glow-blue";
 
   return (
-    <div className={`relative rounded border ${border} bg-card/60 p-3 flex items-center gap-3 ${fighter ? "" : "opacity-60"}`}>
-      <FighterPortrait fighter={fighter} size="md" corner={cornerColor} />
-      <div className="min-w-0 flex-1">
-        <p className={`font-arcade text-[9px] ${accent} tracking-widest`}>{label}</p>
-        {fighter ? (
-          <>
-            <p className={`font-arcade text-sm sm:text-base mt-1 ${cornerColor === "red" ? "glow-red" : "glow-blue"}`}>
+    <div className={`relative rounded-md border-2 ${isMine ? borderCls : "border-border"} bg-card/70 overflow-hidden`}>
+      <div className={`absolute top-0 left-0 right-0 h-1 ${accentBg}`} />
+
+      <div className="grid grid-cols-[1fr_1.2fr] gap-0">
+        {/* Portrait */}
+        <div
+          className="relative aspect-square"
+          style={{
+            background: `radial-gradient(circle, ${fighter.color}40 0%, transparent 70%)`,
+          }}
+        >
+          <Image
+            src={fighter.portrait}
+            alt={fighter.name}
+            fill
+            sizes="(min-width: 1024px) 360px, 50vw"
+            className="object-contain"
+            priority
+          />
+        </div>
+
+        {/* Info */}
+        <div className="p-4 sm:p-5 flex flex-col gap-3">
+          <div>
+            <p className={`font-arcade text-[10px] ${accent} tracking-widest`}>
+              {isMine ? "YOUR FIGHTER" : "PREVIEW"}
+            </p>
+            <p className={`font-arcade text-xl sm:text-2xl mt-1 ${fighter.glowClass}`}>
               {fighter.name.toUpperCase()}
             </p>
-            <p className="font-terminal text-sm text-muted-foreground truncate">
-              {tokenName ? <>repping <span className="text-foreground font-bold">{tokenName}</span></> : <span className="italic">no coin yet</span>}
+            <p className="font-terminal text-base text-muted-foreground italic">
+              {fighter.tagline}
             </p>
-          </>
-        ) : (
-          <p className="font-terminal text-sm text-muted-foreground italic mt-1">choosing…</p>
-        )}
-        {ready && fighter && (
-          <Badge className="mt-1.5 font-arcade text-[9px] bg-neon-green/90 text-black">READY</Badge>
-        )}
-      </div>
-    </div>
-  );
-}
+          </div>
 
-function StatBar({ label, value, color }: { label: string; value: number; color: string }) {
-  return (
-    <div className="flex items-center gap-2">
-      <span className="font-arcade text-[9px] text-muted-foreground w-8">{label}</span>
-      <div className="flex-1 h-1.5 rounded bg-muted/60 overflow-hidden">
-        <div className="h-full transition-[width]" style={{ width: `${value}%`, background: color }} />
+          {isMine && tokenName && (
+            <p className={`font-arcade text-3xl sm:text-4xl ${glow} leading-none`}>
+              {tokenName}
+            </p>
+          )}
+
+          {/* Tale of the tape */}
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 font-arcade text-[10px] tracking-widest">
+            <dt className="text-muted-foreground">ARCHETYPE</dt>
+            <dd className="text-right">{fighter.archetype.toUpperCase()}</dd>
+            <dt className="text-muted-foreground">POWER</dt>
+            <dd className="text-right tabular-nums">{fighter.stats.power}</dd>
+            <dt className="text-muted-foreground">SPEED</dt>
+            <dd className="text-right tabular-nums">{fighter.stats.speed}</dd>
+            <dt className="text-muted-foreground">TECHNIQUE</dt>
+            <dd className="text-right tabular-nums">{fighter.stats.technique}</dd>
+          </dl>
+
+          <div>
+            <p className="font-arcade text-[9px] text-muted-foreground tracking-widest mb-1">
+              SIGNATURE MOVES
+            </p>
+            <ul className="space-y-0.5">
+              {fighter.signatureMoves.slice(0, 4).map((m) => (
+                <li key={m} className={`font-terminal text-sm ${fighter.glowClass}/85 truncate`}>
+                  ▸ {m}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {opp && (
+            <div className="mt-auto pt-3 border-t border-border/60 flex items-center gap-3 text-xs">
+              <span className="font-arcade text-[9px] text-muted-foreground tracking-widest">
+                VS OPP
+              </span>
+              <div
+                className="relative w-9 h-9 rounded-sm overflow-hidden border border-foreground/30"
+                style={{ boxShadow: `0 0 10px ${opp.color}66` }}
+              >
+                <Image src={opp.portrait} alt={opp.name} fill sizes="36px" className="object-contain" />
+              </div>
+              <span className="font-terminal text-sm text-muted-foreground truncate">{opp.name}</span>
+            </div>
+          )}
+        </div>
       </div>
-      <span className="font-arcade text-[9px] w-6 text-right tabular-nums">{value}</span>
     </div>
   );
 }

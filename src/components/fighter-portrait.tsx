@@ -60,7 +60,7 @@ export function FighterPortrait({
   return (
     <div className={`flex flex-col items-center gap-1.5 ${className}`}>
       <div
-        className={`relative overflow-hidden rounded-md border-2 ${cornerCls} bg-card/80 backdrop-blur-sm`}
+        className={`relative overflow-hidden rounded-md border-2 ${cornerCls} bg-card/80`}
         style={{
           width: dims.box,
           height: dims.box,

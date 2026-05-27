@@ -1,14 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { getFighter, type Fighter } from "@/data/fighters";
 import { useMatch } from "@/lib/use-match";
 import { formatClock, DEFAULT_TURN_MS } from "@/lib/match";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { FighterPortrait, FighterBadge } from "@/components/fighter-portrait";
+import {
+  ArenaBackdrop,
+  BroadcastTicker,
+  LowerThird,
+  RoundBreak,
+  StatCallout,
+} from "@/components/broadcast";
 
 export default function BattlePage() {
   const router = useRouter();
@@ -34,6 +41,17 @@ export default function BattlePage() {
     : 0;
   const isCritical = turnRemaining > 0 && turnRemaining < 5_000;
 
+  // ── Broadcast overlays state ─────────────────────────────────────────
+  const [showSpeakerLT, setShowSpeakerLT] = useState(false);
+  const [callout, setCallout] = useState<{ label: string; value: string; body?: string; key: number } | null>(null);
+  const [showRoundBreak, setShowRoundBreak] = useState(false);
+  const [shakeKey, setShakeKey] = useState(0);
+  const lastSpeakerRef = useRef<"p1" | "p2">("p1");
+  const lastVotesRef = useRef<{ p1: number; p2: number }>({ p1: 0, p2: 0 });
+  const lastRoundRef = useRef<number>(1);
+  const speakerLTHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Auto-rotate turn on timeout ──
   useEffect(() => {
     if (state.phase !== "battle") return;
     if (role !== state.battle.turnOwner) return;
@@ -46,15 +64,54 @@ export default function BattlePage() {
     if (state.phase === "results") router.push("/results");
   }, [state.phase, router]);
 
+  // ── Detect speaker change → pop lower-third ──
+  useEffect(() => {
+    if (state.battle.turnOwner === lastSpeakerRef.current) return;
+    lastSpeakerRef.current = state.battle.turnOwner;
+    setShowSpeakerLT(true);
+    if (speakerLTHideTimer.current) clearTimeout(speakerLTHideTimer.current);
+    speakerLTHideTimer.current = setTimeout(() => setShowSpeakerLT(false), 2400);
+    return () => {
+      if (speakerLTHideTimer.current) clearTimeout(speakerLTHideTimer.current);
+    };
+  }, [state.battle.turnOwner]);
+
+  // ── Detect swing votes → callout + shake ──
+  useEffect(() => {
+    const dP1 = state.votes.p1 - lastVotesRef.current.p1;
+    const dP2 = state.votes.p2 - lastVotesRef.current.p2;
+    lastVotesRef.current = { p1: state.votes.p1, p2: state.votes.p2 };
+    const swing = Math.max(dP1, dP2);
+    if (swing >= 3) {
+      const leader = dP1 > dP2 ? "p1" : "p2";
+      const token = leader === "p1" ? p1Token : p2Token;
+      const fighterName = leader === "p1" ? p1Char?.name : p2Char?.name;
+      setCallout({
+        label: "BIG SWING",
+        value: `+${swing} ${token}`,
+        body: fighterName ? `${fighterName} pulling the crowd.` : undefined,
+        key: Date.now(),
+      });
+      setShakeKey((k) => k + 1);
+    }
+  }, [state.votes.p1, state.votes.p2, p1Token, p2Token, p1Char, p2Char]);
+
+  // ── Detect round change → interstitial ──
+  useEffect(() => {
+    if (state.battle.rounds.current === lastRoundRef.current) return;
+    if (state.battle.rounds.current > lastRoundRef.current && state.battle.rounds.current > 1) {
+      setShowRoundBreak(true);
+    }
+    lastRoundRef.current = state.battle.rounds.current;
+  }, [state.battle.rounds.current]);
+
   const isMyTurn = (role === "p1" || role === "p2") && state.battle.turnOwner === role;
   const canVote = role === "audience" && state.phase === "battle";
 
   if (!p1Char || !p2Char) {
     return (
       <main className="flex-1 flex items-center justify-center">
-        <p className="font-terminal text-xl text-muted-foreground">
-          Waiting for fighters…
-        </p>
+        <p className="font-terminal text-xl text-muted-foreground">Waiting for fighters…</p>
       </main>
     );
   }
@@ -64,115 +121,148 @@ export default function BattlePage() {
   const p2Pct = 100 - p1Pct;
   const pot = state.wager.p1.amount + state.wager.p2.amount;
 
-  return (
-    <main className="arena-haze flex-1 grid grid-rows-[auto_auto_1fr_auto] gap-3 px-3 sm:px-6 py-3 sm:py-4 overflow-hidden">
-      {/* HUD ROW */}
-      <div className="grid grid-cols-[1fr_auto_1fr] items-stretch gap-2 sm:gap-4">
-        <FighterHud
-          char={p1Char}
-          token={p1Token}
-          votes={state.votes.p1}
-          pct={p1Pct}
-          side="left"
-          isTurn={state.battle.turnOwner === "p1"}
-          isYou={role === "p1"}
-        />
+  // Ticker copy — dynamic
+  const tickerItems = [
+    `ROUND ${state.battle.rounds.current} OF ${state.battle.rounds.max}`,
+    `POT · ${pot} PXL`,
+    `${p1Token} ${Math.round(p1Pct)}% · ${p2Token} ${Math.round(p2Pct)}%`,
+    `${state.battle.turnOwner === "p1" ? p1Token : p2Token} ON THE MIC`,
+    `${state.battle.posts.length} ARGUMENTS POSTED`,
+    "WINNER TAKES POT",
+  ];
 
-        {/* CENTER ARENA COLUMN */}
-        <div className="flex flex-col items-center gap-1 px-2 sm:px-4 min-w-[140px] sm:min-w-[180px]">
-          <p className="font-arcade text-[10px] text-muted-foreground tracking-widest">
-            ROUND {state.battle.rounds.current}/{state.battle.rounds.max}
-          </p>
-          <p
-            className={`font-arcade text-3xl sm:text-5xl tabular-nums leading-none ${
-              isCritical ? "glow-red animate-pulse-glow" : "glow-yellow"
-            }`}
-          >
-            {formatClock(turnRemaining)}
-          </p>
-          <div className="w-full h-1 rounded bg-muted/60 overflow-hidden">
-            <div
-              className={`h-full transition-[width] duration-200 ${
-                isCritical ? "bg-neon-red" : "bg-neon-yellow"
-              }`}
-              style={{ width: `${turnPct}%` }}
-            />
-          </div>
-          <Badge
-            variant="outline"
-            className={`font-arcade text-[9px] mt-1 ${
-              state.battle.turnOwner === "p1"
-                ? "border-neon-red/70 text-neon-red"
-                : "border-neon-blue/70 text-neon-blue"
-            }`}
-          >
-            {state.battle.turnOwner.toUpperCase()} SPEAKING
-          </Badge>
-          {pot > 0 && (
-            <p className="font-arcade text-[10px] glow-green mt-0.5">
-              💰 POT {pot}
+  const speakerFighter = state.battle.turnOwner === "p1" ? p1Char : p2Char;
+  const speakerToken = state.battle.turnOwner === "p1" ? p1Token : p2Token;
+  const speakerSide: "left" | "right" = state.battle.turnOwner === "p1" ? "left" : "right";
+
+  return (
+    <main className="relative flex-1 flex flex-col overflow-hidden">
+      <ArenaBackdrop variant="dim" />
+
+      <div
+        key={shakeKey || "still"}
+        className="flex-1 grid grid-rows-[auto_auto_1fr_auto] gap-3 px-3 sm:px-6 py-3 sm:py-4 min-h-0 animate-hud-shake"
+      >
+        {/* HUD ROW */}
+        <div className="grid grid-cols-[1fr_auto_1fr] items-stretch gap-2 sm:gap-4">
+          <FighterHud
+            char={p1Char}
+            token={p1Token}
+            votes={state.votes.p1}
+            pct={p1Pct}
+            side="left"
+            isTurn={state.battle.turnOwner === "p1"}
+            isYou={role === "p1"}
+          />
+          <div className="flex flex-col items-center gap-1 px-2 sm:px-4 min-w-[140px] sm:min-w-[180px]">
+            <p className="font-arcade text-[10px] text-muted-foreground tracking-widest">
+              ROUND {state.battle.rounds.current}/{state.battle.rounds.max}
             </p>
-          )}
+            <p
+              className={`font-arcade text-3xl sm:text-5xl tabular-nums leading-none ${
+                isCritical ? "glow-red animate-pulse-glow" : "glow-yellow"
+              }`}
+            >
+              {formatClock(turnRemaining)}
+            </p>
+            <div className="w-full h-1 rounded bg-muted/60 overflow-hidden">
+              <div
+                className={`h-full transition-[width] duration-200 ${
+                  isCritical ? "bg-neon-red" : "bg-neon-yellow"
+                }`}
+                style={{ width: `${turnPct}%` }}
+              />
+            </div>
+            {pot > 0 && (
+              <p className="font-arcade text-[10px] glow-green mt-1">POT · {pot}</p>
+            )}
+          </div>
+          <FighterHud
+            char={p2Char}
+            token={p2Token}
+            votes={state.votes.p2}
+            pct={p2Pct}
+            side="right"
+            isTurn={state.battle.turnOwner === "p2"}
+            isYou={role === "p2"}
+          />
         </div>
 
-        <FighterHud
-          char={p2Char}
-          token={p2Token}
-          votes={state.votes.p2}
-          pct={p2Pct}
-          side="right"
-          isTurn={state.battle.turnOwner === "p2"}
-          isYou={role === "p2"}
+        {/* SPLIT VOTE METER */}
+        <div className="relative h-2.5 rounded bg-muted/60 overflow-hidden border border-border">
+          <div
+            className="absolute inset-y-0 left-0 bg-neon-red transition-[width] duration-300 bar-shimmer"
+            style={{ width: `${p1Pct}%` }}
+          />
+          <div
+            className="absolute inset-y-0 right-0 bg-neon-blue transition-[width] duration-300 bar-shimmer"
+            style={{ width: `${p2Pct}%` }}
+          />
+          <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-px bg-foreground/40" />
+        </div>
+
+        {/* ARGUMENT FEED */}
+        <ArgumentFeed
+          posts={state.battle.posts}
+          p1Char={p1Char}
+          p2Char={p2Char}
+          p1Token={p1Token}
+          p2Token={p2Token}
+          canVote={canVote}
+          onVote={(target, postId) => send({ type: "VOTE", role: target, postId })}
         />
+
+        {/* INPUT DOCK */}
+        {role === "p1" || role === "p2" ? (
+          <Composer
+            disabled={!isMyTurn}
+            speakerToken={state.battle.turnOwner === "p1" ? p1Token : p2Token}
+            mySide={role}
+            onSubmit={(text, mode) => send({ type: "POST_ARGUMENT", role, text, mode })}
+            onEndTurn={() => send({ type: "ROTATE_TURN", at: Date.now() })}
+          />
+        ) : (
+          <AudienceBar
+            onVote={(target) => send({ type: "VOTE", role: target })}
+            p1Token={p1Token || p1Char.name}
+            p2Token={p2Token || p2Char.name}
+          />
+        )}
       </div>
 
-      {/* SPLIT VOTE METER */}
-      <div className="relative h-2.5 rounded bg-muted/60 overflow-hidden border border-border">
-        <div
-          className="absolute inset-y-0 left-0 bg-neon-red transition-[width] duration-300 bar-shimmer"
-          style={{ width: `${p1Pct}%` }}
-        />
-        <div
-          className="absolute inset-y-0 right-0 bg-neon-blue transition-[width] duration-300 bar-shimmer"
-          style={{ width: `${p2Pct}%` }}
-        />
-        <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-px bg-foreground/40" />
-      </div>
-
-      {/* ARGUMENT FEED */}
-      <ArgumentFeed
-        posts={state.battle.posts}
-        p1Char={p1Char}
-        p2Char={p2Char}
-        p1Token={p1Token}
-        p2Token={p2Token}
-        canVote={canVote}
-        onVote={(target, postId) => send({ type: "VOTE", role: target, postId })}
+      {/* OVERLAYS */}
+      <LowerThird
+        fighter={speakerFighter}
+        token={speakerToken}
+        side={speakerSide}
+        visible={showSpeakerLT}
       />
-
-      {/* INPUT DOCK */}
-      {role === "p1" || role === "p2" ? (
-        <Composer
-          disabled={!isMyTurn}
-          turnLabel={
-            isMyTurn ? "YOUR TURN — speak your case" : "Opponent is speaking…"
-          }
-          mySide={role}
-          onSubmit={(text, mode) => send({ type: "POST_ARGUMENT", role, text, mode })}
-          onEndTurn={() => send({ type: "ROTATE_TURN", at: Date.now() })}
-        />
-      ) : (
-        <AudienceBar
-          onVote={(target) => send({ type: "VOTE", role: target })}
-          p1Token={p1Token || p1Char.name}
-          p2Token={p2Token || p2Char.name}
+      {callout && (
+        <StatCallout
+          label={callout.label}
+          value={callout.value}
+          body={callout.body}
+          show
+          onDone={() => setCallout(null)}
         />
       )}
+      <RoundBreak
+        round={state.battle.rounds.current}
+        totalRounds={state.battle.rounds.max}
+        p1Token={p1Token}
+        p2Token={p2Token}
+        p1Pct={p1Pct}
+        p2Pct={p2Pct}
+        visible={showRoundBreak}
+        onDone={() => setShowRoundBreak(false)}
+      />
+
+      <BroadcastTicker items={tickerItems} accent="yellow" />
     </main>
   );
 }
 
-/* ---------------------------------------------------------------------- */
+/* ─────────────────────────────── FighterHud ───────────────────────────── */
 
 function FighterHud({
   char,
@@ -201,7 +291,7 @@ function FighterHud({
 
   return (
     <div
-      className={`relative p-3 sm:p-4 rounded-md border-2 bg-card/80 backdrop-blur-sm transition-all ${
+      className={`relative p-3 sm:p-4 rounded-md border-2 bg-card/80 transition-all ${
         isTurn ? `${borderTurn} ${ring}` : "border-border"
       }`}
     >
@@ -209,17 +299,23 @@ function FighterHud({
       <span className={`absolute bottom-0 ${side === "left" ? "right-0" : "left-0"} w-3 h-3 border-b-2 border-r-2 ${side === "left" ? "" : "rotate-90"} ${isTurn ? borderTurn : "border-border"}`} />
 
       <div className={`flex gap-3 items-center ${flexAlign}`}>
-        <FighterPortrait
-          fighter={char}
-          size="md"
-          corner={side === "left" ? "red" : "blue"}
-        />
+        <div
+          className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-sm overflow-hidden flex-shrink-0"
+          style={{
+            background: `radial-gradient(circle, ${char.color}55, transparent 70%)`,
+            boxShadow: `inset 0 0 14px ${char.color}33`,
+          }}
+        >
+          <Image src={char.portrait} alt={char.name} fill sizes="80px" className="object-contain" />
+        </div>
         <div className={`${align} flex-1 min-w-0`}>
           <p className={`font-arcade text-[10px] ${accent} tracking-widest`}>
             {side === "left" ? "RED CORNER" : "BLUE CORNER"}
             {isYou && " · YOU"}
           </p>
-          <p className={`font-arcade text-lg sm:text-xl ${glow} truncate`}>{token || char.name}</p>
+          <p className={`font-arcade text-lg sm:text-2xl ${glow} truncate`}>
+            {token || char.name}
+          </p>
           <p className="font-terminal text-sm text-muted-foreground truncate">{char.name}</p>
           <p className="font-arcade text-[10px] text-muted-foreground mt-0.5">
             {votes} VOTE{votes === 1 ? "" : "S"} · {Math.round(pct)}%
@@ -227,21 +323,18 @@ function FighterHud({
         </div>
       </div>
       <div className="mt-2 h-1.5 rounded bg-muted/60 overflow-hidden">
-        <div
-          className={`h-full ${bar} transition-[width] duration-300`}
-          style={{ width: `${pct}%` }}
-        />
+        <div className={`h-full ${bar} transition-[width] duration-300`} style={{ width: `${pct}%` }} />
       </div>
       {isTurn && (
-        <p
-          className={`mt-1.5 font-arcade text-[9px] ${accent} ${align} animate-flicker tracking-widest`}
-        >
+        <p className={`mt-1.5 font-arcade text-[9px] ${accent} ${align} animate-flicker tracking-widest`}>
           ◉ NOW SPEAKING
         </p>
       )}
     </div>
   );
 }
+
+/* ─────────────────────────────── ArgumentFeed ─────────────────────────── */
 
 function ArgumentFeed({
   posts,
@@ -271,7 +364,7 @@ function ArgumentFeed({
   return (
     <div
       ref={scrollerRef}
-      className="min-h-0 overflow-y-auto rounded-md border border-border bg-background/40 backdrop-blur-sm p-3 sm:p-4 space-y-3"
+      className="min-h-0 overflow-y-auto rounded-md border border-border bg-background/30 p-3 sm:p-4 space-y-3"
     >
       {posts.length === 0 ? (
         <div className="h-full flex flex-col items-center justify-center py-12 gap-3">
@@ -289,18 +382,22 @@ function ArgumentFeed({
           return (
             <div
               key={p.id}
-              className={`flex gap-2 sm:gap-3 animate-post-in ${
-                isLeft ? "" : "flex-row-reverse"
-              }`}
+              className={`flex gap-2 sm:gap-3 animate-post-in ${isLeft ? "" : "flex-row-reverse"}`}
               style={{ animationDelay: `${Math.min(i * 30, 200)}ms` }}
             >
-              <FighterBadge fighter={char} size="sm" className="shrink-0" />
+              <div
+                className="relative w-12 h-12 rounded-sm overflow-hidden flex-shrink-0 border border-foreground/30"
+                style={{
+                  background: `radial-gradient(circle, ${char.color}55, transparent 70%)`,
+                  boxShadow: `0 0 10px ${char.color}55`,
+                }}
+              >
+                <Image src={char.portrait} alt={char.name} fill sizes="48px" className="object-contain" />
+              </div>
 
               <div
                 className={`relative max-w-[80%] sm:max-w-[70%] rounded-md border p-3 ${
-                  isLeft
-                    ? "border-neon-red/50 bg-neon-red/[0.06]"
-                    : "border-neon-blue/50 bg-neon-blue/[0.06]"
+                  isLeft ? "border-neon-red/50 bg-neon-red/[0.06]" : "border-neon-blue/50 bg-neon-blue/[0.06]"
                 }`}
               >
                 <span
@@ -311,15 +408,11 @@ function ArgumentFeed({
                   }`}
                 />
                 <div className="flex items-center justify-between gap-3 mb-1">
-                  <span
-                    className={`font-arcade text-[10px] tracking-widest ${
-                      isLeft ? "glow-red" : "glow-blue"
-                    }`}
-                  >
-                    {label} · {p.mode === "voice" ? "🎤" : "⌨"}
+                  <span className={`font-arcade text-sm tracking-widest ${isLeft ? "glow-red" : "glow-blue"}`}>
+                    {label}
                   </span>
                   <span className="font-arcade text-[9px] text-muted-foreground">
-                    {p.votes.total} VOTE{p.votes.total === 1 ? "" : "S"}
+                    {p.mode === "voice" ? "🎤" : "⌨"} · {p.votes.total} VOTE{p.votes.total === 1 ? "" : "S"}
                   </span>
                 </div>
                 <p className="font-terminal text-lg leading-snug">{p.text}</p>
@@ -348,15 +441,17 @@ function ArgumentFeed({
   );
 }
 
+/* ─────────────────────────────── Composer ─────────────────────────────── */
+
 function Composer({
   disabled,
-  turnLabel,
+  speakerToken,
   mySide,
   onSubmit,
   onEndTurn,
 }: {
   disabled: boolean;
-  turnLabel: string;
+  speakerToken: string;
   mySide: "p1" | "p2";
   onSubmit: (text: string, mode: import("@/lib/match").TurnInputMode) => void;
   onEndTurn: () => void;
@@ -392,9 +487,7 @@ function Composer({
     rec.continuous = true;
     rec.onresult = (e: SpeechRecognitionEvent) => {
       let full = "";
-      for (let i = 0; i < e.results.length; i++) {
-        full += e.results[i][0].transcript;
-      }
+      for (let i = 0; i < e.results.length; i++) full += e.results[i][0].transcript;
       setText(full);
     };
     rec.onerror = () => setListening(false);
@@ -417,13 +510,23 @@ function Composer({
     if (listening) stopVoice();
   };
 
+  if (disabled) {
+    // Distinct lockout treatment — no text input visible, just a wait card
+    return (
+      <div className="relative rounded-md border-2 border-dashed border-border bg-muted/30 px-4 py-5 flex items-center justify-center gap-3">
+        <span className="w-2 h-2 rounded-full bg-neon-yellow animate-pulse-glow" />
+        <p className="font-arcade text-xs text-muted-foreground tracking-widest">
+          🎤 {speakerToken || "OPPONENT"} ON THE MIC · WAIT YOUR TURN
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div
-      className={`rounded-md border-2 ${disabled ? "border-border opacity-70" : accent} bg-card/90 backdrop-blur-sm p-3 space-y-2 transition-all`}
-    >
+    <div className={`relative rounded-md border-2 ${accent} bg-card/90 p-3 space-y-2 transition-all`}>
       <div className="flex items-center justify-between gap-2">
-        <p className="font-arcade text-[10px] text-muted-foreground tracking-widest truncate">
-          {turnLabel}
+        <p className="font-arcade text-[10px] text-neon-green tracking-widest truncate animate-flicker">
+          ◉ YOUR TURN · SPEAK YOUR CASE
         </p>
         <div className="flex gap-1">
           <Button
@@ -460,23 +563,20 @@ function Composer({
           onKeyDown={(e) => {
             if (e.key === "Enter") submit();
           }}
-          disabled={disabled}
-          placeholder={disabled ? "Wait for your turn…" : "Make your point (max 280 chars)…"}
+          placeholder="Make your point (max 280 chars)…"
           maxLength={280}
           className="font-terminal text-lg flex-1"
         />
         <Button
           onClick={submit}
-          disabled={disabled || !text.trim()}
-          className={`font-arcade text-xs px-4 ${!disabled && text.trim() ? accentBtn : ""}`}
+          disabled={!text.trim()}
+          className={`font-arcade text-xs px-4 ${text.trim() ? accentBtn : ""}`}
         >
           POST →
         </Button>
       </div>
       <div className="flex items-center justify-between gap-3">
-        <p className="font-arcade text-[9px] text-muted-foreground">
-          {text.length}/280
-        </p>
+        <p className="font-arcade text-[9px] text-muted-foreground">{text.length}/280</p>
         <Button
           size="sm"
           variant="outline"
@@ -484,9 +584,8 @@ function Composer({
             if (listening) stopVoice();
             onEndTurn();
           }}
-          disabled={disabled}
           className="font-arcade text-[10px] h-7 border-neon-green/60 hover:bg-neon-green/15 hover:text-neon-green"
-          title="Pass the mic. Your remaining time is forfeit."
+          title="Pass the mic. Remaining time forfeit."
         >
           ⏭ END TURN
         </Button>
@@ -523,7 +622,7 @@ function AudienceBar({
   p2Token: string;
 }) {
   return (
-    <div className="rounded-md border-2 border-neon-green/40 bg-card/90 backdrop-blur-sm p-3 flex flex-col sm:flex-row gap-2 sm:gap-3 items-center justify-center">
+    <div className="rounded-md border-2 border-neon-green/40 bg-card/90 p-3 flex flex-col sm:flex-row gap-2 sm:gap-3 items-center justify-center">
       <p className="font-arcade text-[10px] text-neon-green tracking-widest sm:mr-2 animate-flicker">
         CROWD VOTE
       </p>

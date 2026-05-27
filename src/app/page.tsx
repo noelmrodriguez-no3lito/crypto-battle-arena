@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useMatch } from "@/lib/use-match";
 import { getWallet, resetWallets } from "@/lib/match";
+import { FIGHTER_ROSTER } from "@/data/fighters";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ArenaBackdrop, BroadcastTicker, FighterReel } from "@/components/broadcast";
 
 export default function LobbyPage() {
   const router = useRouter();
@@ -38,218 +40,107 @@ export default function LobbyPage() {
     setWallets({ p1: 100, p2: 100 });
   };
 
+  const tickerItems = [
+    "TONIGHT 21:00 EST",
+    "MAIN EVENT · 5 ROUNDS · 60s TURNS",
+    "WINNER TAKES THE POT",
+    "NEW FIGHTER: THE ORACLE · SEE ROSTER",
+    `${FIGHTER_ROSTER.length} FIGHTERS ON THE CARD`,
+    "INSERT COIN TO JOIN",
+  ];
+
   return (
-    <main className="arena-grid flex-1 flex flex-col items-center justify-center px-4 sm:px-6 py-10 overflow-hidden">
-      {/* Top marquee ticker */}
-      <div className="absolute top-0 inset-x-0 border-y border-neon-yellow/40 bg-background/80 backdrop-blur-sm overflow-hidden">
-        <div className="marquee-track py-1 font-arcade text-[10px] text-neon-yellow/90 tracking-widest">
-          {Array.from({ length: 2 }).map((_, i) => (
-            <span key={i} className="flex gap-12">
-              <span>◆ BTC vs ETH ◆ SOL vs DOGE ◆ XRP vs ADA ◆ BNB vs LINK ◆</span>
-              <span>● INSERT COIN ● PICK YOUR COIN ● WIN THE CROWD ●</span>
-              <span>★ PXL WAGERS LIVE ★ WINNER TAKES ALL ★</span>
-            </span>
-          ))}
-        </div>
-      </div>
+    <main className="relative flex-1 flex flex-col overflow-hidden">
+      <ArenaBackdrop />
 
-      <div className="w-full max-w-5xl space-y-12 pt-10">
-        {/* HERO */}
-        <header className="text-center space-y-5">
-          <p className="font-arcade text-[11px] text-neon-yellow animate-flicker tracking-[0.4em]">
-            ▷  INSERT COIN  ◁
-          </p>
-          <h1 className="font-arcade text-4xl sm:text-6xl md:text-7xl leading-[0.95] text-chromatic-lg">
-            CRYPTO<br />BATTLE<br />ARENA
-          </h1>
-          <p className="font-terminal text-xl sm:text-2xl text-muted-foreground max-w-md mx-auto">
-            Pick your coin. State your point. <span className="text-neon-yellow">Win the crowd.</span>
-          </p>
-
-          <div className="flex flex-wrap justify-center gap-2 pt-1">
-            <Badge variant="outline" className="font-arcade text-[10px] border-foreground/30">
-              MATCH {state.matchId}
-            </Badge>
-            {role && (
-              <Badge className="font-arcade text-[10px]">
-                YOU: {role.toUpperCase()}
+      <div className="flex-1 grid grid-rows-[auto_1fr_auto] min-h-0">
+        {/* TOP: Event tag + roster reel */}
+        <div className="pt-6 sm:pt-8 px-4 sm:px-8">
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <div className="inline-flex items-center gap-2">
+              <span className="font-arcade text-[10px] tracking-widest text-neon-yellow animate-flicker">
+                ● ON THE CARD
+              </span>
+              <Badge variant="outline" className="font-arcade text-[10px] border-foreground/30">
+                MATCH {state.matchId}
               </Badge>
-            )}
-            {state.phase !== "lobby" && (
-              <Badge variant="secondary" className="font-arcade text-[10px]">
-                PHASE: {state.phase.toUpperCase()}
-              </Badge>
-            )}
-          </div>
-        </header>
-
-        {/* PRIMARY CTA */}
-        <div className="mx-auto max-w-md">
-          <div className="relative rounded-md border border-neon-red/50 bg-card/80 backdrop-blur-sm p-5 ring-glow-red">
-            <div className="flex items-center justify-between">
-              <p className="font-arcade text-[10px] text-neon-yellow tracking-widest">
-                ▶ QUICK START
-              </p>
-              <span className="font-arcade text-[9px] text-muted-foreground">P1 SEAT</span>
+              {role && (
+                <Badge className="font-arcade text-[10px]">
+                  YOU: {role.toUpperCase()}
+                </Badge>
+              )}
             </div>
-            <p className="font-terminal text-lg text-muted-foreground mt-2 mb-4">
-              Open this page in <span className="text-foreground font-bold">three tabs</span>.
-              Pick P1, P2, and Audience. Fight starts when both are ready.
+            <Link
+              href="/spectate"
+              className="font-arcade text-[10px] text-muted-foreground hover:text-foreground tracking-widest"
+            >
+              SPECTATOR MODE →
+            </Link>
+          </div>
+          <FighterReel fighters={FIGHTER_ROSTER} />
+        </div>
+
+        {/* CENTER: Hero + CTA, asymmetric */}
+        <div className="grid grid-cols-1 md:grid-cols-[1.4fr_1fr] gap-6 sm:gap-10 px-4 sm:px-8 py-8 sm:py-12 items-center">
+          {/* LEFT: Title block */}
+          <div className="space-y-4 sm:space-y-6">
+            <p className="font-arcade text-[11px] text-neon-red tracking-[0.4em] animate-flicker">
+              ▷ TONIGHT&apos;S MAIN EVENT ◁
             </p>
+            <h1 className="font-arcade text-5xl sm:text-7xl md:text-8xl text-chromatic-lg leading-[0.92]">
+              CRYPTO<br />BATTLE<br />ARENA
+            </h1>
+            <p className="font-terminal text-xl sm:text-2xl text-muted-foreground max-w-md">
+              Pick a fighter. Defend your coin.{" "}
+              <span className="text-neon-yellow font-bold">Win the crowd.</span>
+            </p>
+            <p className="font-arcade text-[10px] text-muted-foreground tracking-widest max-w-md">
+              FIVE ROUNDS · TWO FIGHTERS · ONE POT · CROWD DECIDES
+            </p>
+          </div>
+
+          {/* RIGHT: Role roster (asymmetric, no card-grid) */}
+          <div className="space-y-3">
             <Button
               onClick={startFresh}
-              className="w-full font-arcade text-sm h-14 bg-neon-red/90 hover:bg-neon-red text-white shadow-[0_0_24px_rgba(255,45,85,0.55)]"
+              className="w-full font-arcade text-sm h-16 bg-neon-red hover:bg-neon-red text-white shadow-[0_0_28px_rgba(255,45,85,0.65)]"
             >
-              ▶ NEW MATCH
+              ▶ ENTER AS RED CORNER (P1)
             </Button>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => joinAs("p2")}
+                className="font-arcade text-xs h-12 rounded-md border-2 border-neon-blue/60 bg-neon-blue/[0.06] hover:bg-neon-blue/15 hover:border-neon-blue transition-all text-left px-3"
+              >
+                <span className="block text-neon-blue glow-blue">BLUE CORNER</span>
+                <span className="block text-[10px] text-muted-foreground mt-0.5">JOIN AS P2</span>
+              </button>
+              <button
+                onClick={() => joinAs("audience")}
+                className="font-arcade text-xs h-12 rounded-md border-2 border-neon-green/60 bg-neon-green/[0.06] hover:bg-neon-green/15 hover:border-neon-green transition-all text-left px-3"
+              >
+                <span className="block text-neon-green glow-green">THE CROWD</span>
+                <span className="block text-[10px] text-muted-foreground mt-0.5">VOTE LIVE</span>
+              </button>
+            </div>
+            <div className="flex items-center justify-between pt-3 mt-1 border-t border-border/60 text-[10px] font-arcade tracking-widest text-muted-foreground">
+              <span>💰 P1 {wallets?.p1 ?? "—"} PXL</span>
+              <span>·</span>
+              <span>💰 P2 {wallets?.p2 ?? "—"} PXL</span>
+              <button
+                onClick={onResetWallets}
+                className="text-muted-foreground/70 hover:text-foreground/90"
+                title="Reset both wallets to 100 PXL"
+              >
+                ⟲
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* CHARACTER SELECT PANELS */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <CornerPanel
-            corner="red"
-            label="PLAYER 1"
-            tagline="Red corner. Pick a coin to represent."
-            wallet={wallets?.p1}
-            cta="JOIN AS P1"
-            onJoin={() => joinAs("p1")}
-            symbol="◤"
-          />
-          <CornerPanel
-            corner="blue"
-            label="PLAYER 2"
-            tagline="Blue corner. Pick a coin to represent."
-            wallet={wallets?.p2}
-            cta="JOIN AS P2"
-            onJoin={() => joinAs("p2")}
-            symbol="◥"
-          />
-          <CornerPanel
-            corner="green"
-            label="AUDIENCE"
-            tagline="Watch the fight. Vote each round."
-            cta="JOIN AS CROWD"
-            onJoin={() => joinAs("audience")}
-            symbol="◆"
-          />
-        </div>
-
-        <footer className="text-center space-y-3 font-terminal text-base text-muted-foreground/70 pb-2">
-          <Link href="/spectate" className="hover:text-foreground underline-offset-4 hover:underline block">
-            Just want to spectate? →
-          </Link>
-          <button
-            onClick={onResetWallets}
-            className="font-arcade text-[10px] text-muted-foreground/60 hover:text-foreground/80 tracking-widest"
-          >
-            ⟲ RESET WALLETS TO 100 PXL
-          </button>
-        </footer>
+        {/* BOTTOM: live ticker */}
+        <BroadcastTicker items={tickerItems} accent="yellow" className="mt-auto" />
       </div>
     </main>
-  );
-}
-
-/* ---------------------------------------------------------------------- */
-
-type Corner = "red" | "blue" | "green";
-
-const CORNER_STYLES: Record<
-  Corner,
-  {
-    border: string;
-    hover: string;
-    glow: string;
-    ring: string;
-    bg: string;
-    chip: string;
-    portrait: string;
-  }
-> = {
-  red: {
-    border: "border-neon-red/50",
-    hover: "hover:border-neon-red hover:ring-glow-red",
-    glow: "glow-red",
-    ring: "ring-glow-red",
-    bg: "bg-gradient-to-b from-neon-red/[0.07] to-transparent",
-    chip: "border-neon-red/60 text-neon-red",
-    portrait: "from-neon-red/30 to-transparent",
-  },
-  blue: {
-    border: "border-neon-blue/50",
-    hover: "hover:border-neon-blue hover:ring-glow-blue",
-    glow: "glow-blue",
-    ring: "ring-glow-blue",
-    bg: "bg-gradient-to-b from-neon-blue/[0.07] to-transparent",
-    chip: "border-neon-blue/60 text-neon-blue",
-    portrait: "from-neon-blue/30 to-transparent",
-  },
-  green: {
-    border: "border-neon-green/50",
-    hover: "hover:border-neon-green hover:ring-glow-green",
-    glow: "glow-green",
-    ring: "ring-glow-green",
-    bg: "bg-gradient-to-b from-neon-green/[0.07] to-transparent",
-    chip: "border-neon-green/60 text-neon-green",
-    portrait: "from-neon-green/30 to-transparent",
-  },
-};
-
-function CornerPanel({
-  corner,
-  label,
-  tagline,
-  wallet,
-  cta,
-  onJoin,
-  symbol,
-}: {
-  corner: Corner;
-  label: string;
-  tagline: string;
-  wallet?: number;
-  cta: string;
-  onJoin: () => void;
-  symbol: string;
-}) {
-  const s = CORNER_STYLES[corner];
-  return (
-    <button
-      onClick={onJoin}
-      className={`group relative text-left rounded-md border-2 ${s.border} ${s.bg} ${s.hover} transition-all overflow-hidden`}
-    >
-      {/* Corner-flag stripe */}
-      <div className={`absolute top-0 left-0 right-0 h-1.5 ${corner === "red" ? "bg-neon-red" : corner === "blue" ? "bg-neon-blue" : "bg-neon-green"} opacity-80`} />
-
-      <div className="p-5 space-y-4">
-        <div className="flex items-center justify-between">
-          <p className={`font-arcade text-xs ${s.glow}`}>{label}</p>
-          <span className={`font-arcade text-2xl ${s.glow} opacity-80`}>{symbol}</span>
-        </div>
-
-        {/* Portrait placeholder — silhouette block */}
-        <div className={`relative aspect-[5/3] rounded-sm border border-border bg-gradient-to-b ${s.portrait} flex items-center justify-center overflow-hidden`}>
-          <div className="absolute inset-0 opacity-30 [background:repeating-linear-gradient(90deg,transparent_0,transparent_6px,rgba(255,255,255,0.05)_6px,rgba(255,255,255,0.05)_7px)]" />
-          <p className={`font-arcade text-4xl sm:text-5xl ${s.glow} opacity-70`}>{symbol}</p>
-        </div>
-
-        <p className="font-terminal text-base text-muted-foreground leading-snug">
-          {tagline}
-        </p>
-
-        {typeof wallet === "number" && (
-          <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded border ${s.chip} font-arcade text-[10px]`}>
-            💰 {wallet} PXL
-          </div>
-        )}
-
-        <div
-          className={`w-full text-center font-arcade text-xs h-11 leading-[2.75rem] rounded border ${s.border} group-hover:bg-foreground/5 transition-colors`}
-        >
-          {cta} →
-        </div>
-      </div>
-    </button>
   );
 }

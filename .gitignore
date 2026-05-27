@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# verify harness output (scripts are committed; captured runs are not)
+.verify/shots/
+.verify/report.json
+.verify/*.deb

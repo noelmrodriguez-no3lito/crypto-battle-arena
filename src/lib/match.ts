@@ -17,7 +17,35 @@ export type Phase =
   | "battle"
   | "results";
 
-export type Role = "p1" | "p2" | "audience";
+export type Role = "p1" | "p2" | "audience" | "moderator";
+
+/**
+ * Round structure (Phase G):
+ *   1 = OPENING       — each player has 60s to make their opening case
+ *   2 = MODERATOR_QA  — moderator asks crypto questions; mod ends the round
+ *   3 = CROWD         — audience submits questions, fighters respond
+ *   4 = CLOSING       — each player has 60s to close
+ */
+export type RoundType = "opening" | "moderator_qa" | "crowd" | "closing";
+
+export function roundType(current: number): RoundType {
+  switch (current) {
+    case 1: return "opening";
+    case 2: return "moderator_qa";
+    case 3: return "crowd";
+    case 4: return "closing";
+    default: return "closing";
+  }
+}
+
+export function roundLabel(current: number): string {
+  switch (roundType(current)) {
+    case "opening":      return "OPENING";
+    case "moderator_qa": return "Q&A";
+    case "crowd":        return "CROWD";
+    case "closing":      return "CLOSING";
+  }
+}
 
 export type TurnInputMode = "text" | "voice";
 
@@ -65,9 +93,9 @@ export type MatchState = {
   updatedAt: number;
 };
 
-// v2: state shape changed when fighters were decoupled from coin identity.
-// Older v1 snapshots are silently dropped on load.
-export const STORAGE_KEY = "cba:match:v2";
+// v3: round model changed to 4 typed rounds, moderator role added.
+// Older snapshots are silently dropped on load.
+export const STORAGE_KEY = "cba:match:v3";
 export const CHANNEL_NAME = "cba:channel";
 export const ROLE_KEY = "cba:role";
 export const WALLET_KEY = (role: "p1" | "p2") => `cba:wallet:${role}`;
@@ -76,7 +104,7 @@ export const SETTLED_KEY = (matchId: string, role: "p1" | "p2") =>
 
 export const DEFAULT_BATTLE_MS = 10 * 60 * 1000;
 export const DEFAULT_TURN_MS = 60 * 1000;
-export const DEFAULT_ROUNDS = 5; // 5 rounds × 2 turns × 60s cap = 10 min upper bound; turns can end early
+export const DEFAULT_ROUNDS = 4; // Phase G: 4 typed rounds (opening / Q&A / crowd / closing)
 export const STARTING_BALANCE = 100;
 export const WAGER_CHIPS = [5, 10, 25, 50, 100] as const;
 
@@ -127,6 +155,7 @@ export type Action =
   | { type: "POST_ARGUMENT"; role: "p1" | "p2"; text: string; mode: TurnInputMode }
   | { type: "VOTE"; role: "p1" | "p2"; postId?: string }
   | { type: "ROTATE_TURN"; at: number }
+  | { type: "NEXT_ROUND"; at: number }
   | { type: "END_BATTLE"; at: number }
   | { type: "FORFEIT"; role: "p1" | "p2" }
   | { type: "AUDIENCE_PING"; delta: 1 | -1 }
@@ -281,6 +310,31 @@ export function reduce(state: MatchState, action: Action): MatchState {
       const { p1, p2 } = state.votes;
       const winner = p1 === p2 ? "tie" : p1 > p2 ? "p1" : "p2";
       return stamp({ ...state, phase: "results", winner, battle: { ...state.battle, turnEndsAt: null } });
+    }
+
+    case "NEXT_ROUND": {
+      // Moderator manually advances to the next round (or ends the match).
+      if (state.phase !== "battle") return state;
+      const next = state.battle.rounds.current + 1;
+      if (next > state.battle.rounds.max) {
+        const { p1, p2 } = state.votes;
+        const winner = p1 === p2 ? "tie" : p1 > p2 ? "p1" : "p2";
+        return stamp({
+          ...state,
+          phase: "results",
+          winner,
+          battle: { ...state.battle, turnEndsAt: null },
+        });
+      }
+      return stamp({
+        ...state,
+        battle: {
+          ...state.battle,
+          rounds: { ...state.battle.rounds, current: next },
+          turnOwner: "p1",
+          turnEndsAt: action.at + state.battle.turnDurationMs,
+        },
+      });
     }
 
     case "FORFEIT": {

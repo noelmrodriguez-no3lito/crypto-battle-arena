@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { getFighter, type Fighter } from "@/data/fighters";
 import { useMatch } from "@/lib/use-match";
-import { formatClock, DEFAULT_TURN_MS } from "@/lib/match";
+import { formatClock, DEFAULT_TURN_MS, roundType, roundLabel } from "@/lib/match";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -48,14 +48,20 @@ export default function BattlePage() {
   const lastVotesRef = useRef<{ p1: number; p2: number }>({ p1: 0, p2: 0 });
   const speakerLTHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── Auto-rotate turn on timeout ──
+  // Round 2 (Q&A) and Round 3 (Crowd) are moderator-paced — no timer auto-advance.
+  const currentRoundType = roundType(state.battle.rounds.current);
+  const isModeratorPacedRound =
+    currentRoundType === "moderator_qa" || currentRoundType === "crowd";
+
+  // ── Auto-rotate turn on timeout (skipped during moderator-paced rounds) ──
   useEffect(() => {
     if (state.phase !== "battle") return;
+    if (isModeratorPacedRound) return;
     if (role !== state.battle.turnOwner) return;
     if (!state.battle.turnEndsAt) return;
     if (now < state.battle.turnEndsAt) return;
     send({ type: "ROTATE_TURN", at: now });
-  }, [now, state.phase, state.battle.turnEndsAt, state.battle.turnOwner, role, send]);
+  }, [now, state.phase, state.battle.turnEndsAt, state.battle.turnOwner, role, send, isModeratorPacedRound]);
 
   useEffect(() => {
     if (state.phase === "results") router.push("/results");
@@ -144,7 +150,7 @@ export default function BattlePage() {
           />
           <div className="flex flex-col items-center gap-1 px-2 sm:px-4 min-w-[140px] sm:min-w-[180px]">
             <p className="font-arcade text-[10px] text-muted-foreground tracking-widest">
-              ROUND {state.battle.rounds.current}/{state.battle.rounds.max}
+              ROUND {state.battle.rounds.current}/{state.battle.rounds.max} · {roundLabel(state.battle.rounds.current)}
             </p>
             <p
               className={`font-arcade text-3xl sm:text-5xl tabular-nums leading-none ${
@@ -211,6 +217,23 @@ export default function BattlePage() {
             onForfeit={() => {
               if (typeof window !== "undefined" && window.confirm("Forfeit the match? Opponent takes the pot.")) {
                 send({ type: "FORFEIT", role });
+              }
+            }}
+          />
+        ) : role === "moderator" ? (
+          <ModeratorPanel
+            round={state.battle.rounds.current}
+            maxRounds={state.battle.rounds.max}
+            speakerToken={state.battle.turnOwner === "p1" ? p1Token : p2Token}
+            isPaced={isModeratorPacedRound}
+            onNextSpeaker={() => send({ type: "ROTATE_TURN", at: Date.now() })}
+            onNextRound={() => {
+              const last = state.battle.rounds.current === state.battle.rounds.max;
+              const msg = last
+                ? "End the match and go to results?"
+                : `End Round ${state.battle.rounds.current} and start Round ${state.battle.rounds.current + 1}?`;
+              if (typeof window !== "undefined" && window.confirm(msg)) {
+                send({ type: "NEXT_ROUND", at: Date.now() });
               }
             }}
           />
@@ -648,6 +671,59 @@ function VoiceVisualizer() {
           }}
         />
       ))}
+    </div>
+  );
+}
+
+function ModeratorPanel({
+  round,
+  maxRounds,
+  speakerToken,
+  isPaced,
+  onNextSpeaker,
+  onNextRound,
+}: {
+  round: number;
+  maxRounds: number;
+  speakerToken: string;
+  isPaced: boolean;
+  onNextSpeaker: () => void;
+  onNextRound: () => void;
+}) {
+  const label = roundLabel(round);
+  const isLast = round === maxRounds;
+  return (
+    <div className="rounded-md border-2 border-purple-500/50 bg-purple-500/[0.04] backdrop-blur-sm p-3 flex flex-col sm:flex-row items-center justify-between gap-3">
+      <div className="flex items-center gap-3">
+        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-purple-500/15 border border-purple-500/40 text-purple-300 text-[10px] font-medium tracking-wider uppercase">
+          <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
+          Moderator
+        </span>
+        <p className="font-arcade text-[10px] text-foreground/70 tracking-widest">
+          ROUND {round}/{maxRounds} · {label}
+          {isPaced && " · YOU PACE"}
+        </p>
+        <p className="font-arcade text-[10px] text-foreground/50 tracking-widest hidden md:block">
+          🎤 {speakerToken || "—"} HAS THE MIC
+        </p>
+      </div>
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={onNextSpeaker}
+          className="font-arcade text-[10px] h-8 border-foreground/30 hover:border-foreground/60"
+        >
+          ⏭ Next speaker
+        </Button>
+        <Button
+          size="sm"
+          onClick={onNextRound}
+          className="font-arcade text-[10px] h-8 px-4 bg-purple-500/90 hover:bg-purple-500 text-white shadow-[0_0_18px_rgba(168,85,247,0.45)]"
+        >
+          {isLast ? "End match →" : "End round →"}
+        </Button>
+      </div>
     </div>
   );
 }

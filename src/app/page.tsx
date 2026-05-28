@@ -9,7 +9,7 @@ import { getWallet, resetWallets } from "@/lib/match";
 import { FIGHTER_ROSTER } from "@/data/fighters";
 import { BroadcastTicker } from "@/components/broadcast";
 
-type RoleKey = "p1" | "p2" | "audience";
+type RoleKey = "p1" | "p2" | "audience" | "moderator";
 
 export default function LobbyPage() {
   const router = useRouter();
@@ -24,7 +24,8 @@ export default function LobbyPage() {
   const joinAs = (r: RoleKey, fresh = false) => {
     if (fresh) send({ type: "RESET" });
     claimRole(r);
-    if (r === "audience") {
+    if (r === "audience" || r === "moderator") {
+      // Spectators and moderators don't pick a fighter
       router.push(state.phase === "battle" ? "/battle" : "/spectate");
     } else {
       router.push("/select");
@@ -85,8 +86,8 @@ export default function LobbyPage() {
           </p>
         </div>
 
-        {/* THREE ROLE ZONES — the hero affordance */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
+        {/* FOUR ROLE ZONES — the hero affordance */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
           <RoleZone
             kind="p1"
             label="Red Corner"
@@ -110,10 +111,20 @@ export default function LobbyPage() {
             onClick={() => joinAs("p2")}
           />
           <RoleZone
+            kind="moderator"
+            label="Moderator"
+            subtitle="Host"
+            description="Run the show. Ask the questions in round 2. Pick crowd questions in round 3."
+            cta="Take the mic →"
+            accent="purple"
+            previewSrc="/fighters/moderator.png"
+            onClick={() => joinAs("moderator")}
+          />
+          <RoleZone
             kind="audience"
             label="The Crowd"
             subtitle="Spectator"
-            description="Watch live. Vote on every argument. The crowd decides who wins."
+            description="Watch live. Vote on every argument. Submit questions in round 3."
             cta="Join the crowd →"
             accent="green"
             onClick={() => joinAs("audience")}
@@ -169,7 +180,7 @@ export default function LobbyPage() {
 
 /* ───────────────────────── Role zone ───────────────────────────────── */
 
-type Accent = "red" | "blue" | "green";
+type Accent = "red" | "blue" | "green" | "purple";
 
 function RoleZone({
   kind,
@@ -180,6 +191,7 @@ function RoleZone({
   accent,
   wallet,
   previewFighter,
+  previewSrc,
   onClick,
 }: {
   kind: RoleKey;
@@ -190,6 +202,7 @@ function RoleZone({
   accent: Accent;
   wallet?: number;
   previewFighter?: (typeof FIGHTER_ROSTER)[number];
+  previewSrc?: string;
   onClick: () => void;
 }) {
   const accentMap: Record<Accent, { surface: string; border: string; text: string; chip: string; ring: string }> = {
@@ -207,6 +220,13 @@ function RoleZone({
       chip: "bg-blue-500/15 text-blue-300 border-blue-500/40",
       ring: "hover:ring-1 hover:ring-blue-500/60 hover:shadow-[0_0_30px_rgba(45,140,255,0.35)]",
     },
+    purple: {
+      surface: "surface-purple",
+      border: "border-purple-500/40 hover:border-purple-500",
+      text: "text-purple-300",
+      chip: "bg-purple-500/15 text-purple-300 border-purple-500/40",
+      ring: "hover:ring-1 hover:ring-purple-500/60 hover:shadow-[0_0_30px_rgba(168,85,247,0.35)]",
+    },
     green: {
       surface: "surface-green",
       border: "border-emerald-500/40 hover:border-emerald-500",
@@ -222,11 +242,11 @@ function RoleZone({
       onClick={onClick}
       className={`group relative overflow-hidden rounded-xl border ${a.border} ${a.surface} ${a.ring} p-5 sm:p-6 text-left transition-all duration-300 min-h-[260px] flex flex-col`}
     >
-      {/* Fighter portrait peeking from the side */}
-      {previewFighter && (
+      {/* Fighter / moderator portrait peeking from the side */}
+      {(previewFighter || previewSrc) && (
         <div className="absolute -right-8 -bottom-6 w-44 h-44 sm:w-52 sm:h-52 opacity-50 group-hover:opacity-80 transition-opacity">
           <Image
-            src={previewFighter.portrait}
+            src={previewSrc || previewFighter!.portrait}
             alt=""
             fill
             sizes="200px"
@@ -236,7 +256,7 @@ function RoleZone({
       )}
 
       {/* Crowd zone gets a stylized icon instead */}
-      {!previewFighter && accent === "green" && (
+      {!previewFighter && !previewSrc && accent === "green" && (
         <div className="absolute right-3 bottom-3 text-7xl opacity-30 group-hover:opacity-60 transition-opacity leading-none">
           ◉
         </div>
@@ -247,7 +267,12 @@ function RoleZone({
           <span
             className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[10px] font-medium tracking-wider uppercase ${a.chip}`}
           >
-            <span className={`w-1.5 h-1.5 rounded-full ${accent === "red" ? "bg-red-500" : accent === "blue" ? "bg-blue-500" : "bg-emerald-500"}`} />
+            <span className={`w-1.5 h-1.5 rounded-full ${
+              accent === "red" ? "bg-red-500" :
+              accent === "blue" ? "bg-blue-500" :
+              accent === "purple" ? "bg-purple-500" :
+              "bg-emerald-500"
+            }`} />
             {subtitle}
           </span>
         </div>

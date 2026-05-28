@@ -18,7 +18,7 @@ export default function SelectPage() {
   const [hoverId, setHoverId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (role === "audience") router.push("/spectate");
+    if (role === "audience" || role === "moderator") router.push("/spectate");
   }, [role, router]);
 
   useEffect(() => {
@@ -36,13 +36,16 @@ export default function SelectPage() {
   const opp = role === "p1" ? state.p2 : role === "p2" ? state.p1 : null;
   const myReady = me?.ready ?? false;
 
-  if (!role || role === "audience" || !me || !opp) {
+  if (!role || role === "audience" || role === "moderator" || !me || !opp) {
     return (
       <main className="flex-1 flex items-center justify-center">
         <p className="font-terminal text-xl">Loading…</p>
       </main>
     );
   }
+
+  // After this point, role is narrowed to "p1" | "p2".
+  const fighterRole: "p1" | "p2" = role;
 
   const myFighter = getFighter(me.fighterId);
   const oppFighter = getFighter(opp.fighterId);
@@ -55,12 +58,12 @@ export default function SelectPage() {
 
   const pickFighter = (f: Fighter) => {
     if (myReady) return;
-    send({ type: "PICK_FIGHTER", role, fighterId: f.id });
+    send({ type: "PICK_FIGHTER", role: fighterRole, fighterId: f.id });
   };
-  const setToken = (raw: string) => send({ type: "SET_TOKEN", role, tokenName: raw });
+  const setToken = (raw: string) => send({ type: "SET_TOKEN", role: fighterRole, tokenName: raw });
   const toggleReady = () => {
     if (!me.fighterId || me.tokenName.length < 2) return;
-    send({ type: "READY", role, ready: !myReady });
+    send({ type: "READY", role: fighterRole, ready: !myReady });
   };
   const canReady = !!me.fighterId && me.tokenName.length >= 2;
 

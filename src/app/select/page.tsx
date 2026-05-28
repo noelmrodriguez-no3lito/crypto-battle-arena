@@ -256,71 +256,80 @@ function FeaturedPanel({
   const glow = cornerColor === "red" ? "glow-red" : "glow-blue";
 
   return (
-    <div className={`relative rounded-md border-2 ${isMine ? borderCls : "border-border"} bg-card/70 overflow-hidden`}>
+    <div className={`relative rounded-xl border ${isMine ? borderCls : "border-border"} bg-card/70 overflow-hidden flex flex-col`}>
       <div className={`absolute top-0 left-0 right-0 h-1 ${accentBg}`} />
 
-      <div className="grid grid-cols-[1fr_1.2fr] gap-0">
-        {/* Portrait */}
-        <div
-          className="relative aspect-square"
-          style={{
-            background: `radial-gradient(circle, ${fighter.color}40 0%, transparent 70%)`,
-          }}
-        >
-          <Image
-            src={fighter.portrait}
-            alt={fighter.name}
-            fill
-            sizes="(min-width: 1024px) 360px, 50vw"
-            className="object-contain"
-            priority
-          />
+      {/* Top: portrait — controlled aspect, no overflow */}
+      <div
+        className="relative w-full"
+        style={{
+          aspectRatio: "16 / 11",
+          background: `radial-gradient(circle at 50% 40%, ${fighter.color}40 0%, transparent 65%)`,
+        }}
+      >
+        <Image
+          src={fighter.portrait}
+          alt={fighter.name}
+          fill
+          sizes="(min-width: 1024px) 560px, 100vw"
+          className="object-cover object-top"
+          priority
+        />
+        {/* Bottom gradient for legibility */}
+        <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-card to-transparent" />
+
+        {/* Eyebrow + name overlay */}
+        <div className="absolute inset-x-0 bottom-0 p-4 sm:p-5">
+          <p className={`type-eyebrow ${accent}`}>
+            {isMine ? "Your fighter" : "Preview"}
+          </p>
+          <h2 className="type-display text-3xl sm:text-4xl mt-1 text-foreground">
+            {fighter.name}
+          </h2>
         </div>
+      </div>
 
-        {/* Info */}
-        <div className="p-4 sm:p-5 flex flex-col gap-3">
+      {/* Below portrait: stats + signature moves, side-by-side on lg */}
+      <div className="p-4 sm:p-5 flex flex-col gap-4 flex-1">
+        <p className="text-base text-foreground/70 italic">{fighter.tagline}</p>
+
+        {isMine && tokenName && (
           <div>
-            <p className={`font-arcade text-[10px] ${accent} tracking-widest`}>
-              {isMine ? "YOUR FIGHTER" : "PREVIEW"}
-            </p>
-            <p className={`font-arcade text-xl sm:text-2xl mt-1 ${fighter.glowClass}`}>
-              {fighter.name.toUpperCase()}
-            </p>
-            <p className="font-terminal text-base text-muted-foreground italic">
-              {fighter.tagline}
-            </p>
-          </div>
-
-          {isMine && tokenName && (
-            <p className={`font-arcade text-3xl sm:text-4xl ${glow} leading-none`}>
+            <p className="type-eyebrow text-foreground/50">Representing</p>
+            <p className={`type-display text-4xl sm:text-5xl ${glow} leading-none mt-1`}>
               {tokenName}
             </p>
-          )}
+          </div>
+        )}
 
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
           {/* Tale of the tape */}
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 font-arcade text-[10px] tracking-widest">
-            <dt className="text-muted-foreground">ARCHETYPE</dt>
-            <dd className="text-right">{fighter.archetype.toUpperCase()}</dd>
-            <dt className="text-muted-foreground">POWER</dt>
-            <dd className="text-right tabular-nums">{fighter.stats.power}</dd>
-            <dt className="text-muted-foreground">SPEED</dt>
-            <dd className="text-right tabular-nums">{fighter.stats.speed}</dd>
-            <dt className="text-muted-foreground">TECHNIQUE</dt>
-            <dd className="text-right tabular-nums">{fighter.stats.technique}</dd>
-          </dl>
-
           <div>
-            <p className="font-arcade text-[9px] text-muted-foreground tracking-widest mb-1">
-              SIGNATURE MOVES
-            </p>
-            <ul className="space-y-0.5">
+            <p className="type-eyebrow text-foreground/50 mb-2">Tale of the tape</p>
+            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+              <dt className="text-foreground/55">Archetype</dt>
+              <dd className="text-right text-foreground/95">{fighter.archetype}</dd>
+              <dt className="text-foreground/55">Power</dt>
+              <dd className="text-right type-mono tabular-nums">{fighter.stats.power}</dd>
+              <dt className="text-foreground/55">Speed</dt>
+              <dd className="text-right type-mono tabular-nums">{fighter.stats.speed}</dd>
+              <dt className="text-foreground/55">Technique</dt>
+              <dd className="text-right type-mono tabular-nums">{fighter.stats.technique}</dd>
+            </dl>
+          </div>
+
+          {/* Signature moves */}
+          <div>
+            <p className="type-eyebrow text-foreground/50 mb-2">Signature moves</p>
+            <ul className="space-y-1 text-sm">
               {fighter.signatureMoves.slice(0, 4).map((m) => (
-                <li key={m} className={`font-terminal text-sm ${fighter.glowClass}/85 truncate`}>
+                <li key={m} className="text-foreground/85 truncate">
                   ▸ {m}
                 </li>
               ))}
             </ul>
           </div>
+        </div>
 
           {opp && (
             <div className="mt-auto pt-3 border-t border-border/60 flex items-center gap-3 text-xs">
@@ -336,7 +345,6 @@ function FeaturedPanel({
               <span className="font-terminal text-sm text-muted-foreground truncate">{opp.name}</span>
             </div>
           )}
-        </div>
       </div>
     </div>
   );

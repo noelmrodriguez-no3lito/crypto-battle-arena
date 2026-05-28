@@ -3,7 +3,9 @@ import { Press_Start_2P, VT323, Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
 const pressStart = Press_Start_2P({
-  variable: "--font-arcade",
+  // Phase F: Press Start 2P moved off the --font-arcade slot (now Geist Mono).
+  // Opt-in only via the .font-pixel utility for rare broadcast-eyebrow accents.
+  variable: "--font-pixel",
   subsets: ["latin"],
   weight: "400",
   display: "swap",

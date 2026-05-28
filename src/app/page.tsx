@@ -75,10 +75,9 @@ export default function LobbyPage() {
             ▷ Tonight&apos;s Main Event
           </p>
           <h1 className="type-display text-[clamp(2.5rem,7vw,5.5rem)] text-foreground">
-            Crypto Battle{" "}
-            <span className="bg-clip-text" style={{ color: "transparent", WebkitTextStrokeWidth: "1px", WebkitTextStrokeColor: "rgb(255,255,255)" }}>
-              Arena
-            </span>
+            Crypto Battle
+            <br className="hidden md:block" />
+            <span className="text-foreground/45 font-light">Arena</span>
           </h1>
           <p className="mt-4 text-lg sm:text-xl text-foreground/70 max-w-2xl leading-relaxed">
             Pick a fighter. Defend your coin. Win the crowd. Five rounds,

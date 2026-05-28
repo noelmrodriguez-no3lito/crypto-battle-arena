@@ -66,12 +66,13 @@ await shoot("/stakes", "stakes-active", base({
   p2: { fighterId: "architect", tokenName: "ETH", ready: true },
 }));
 
+// Capture VS as AUDIENCE so the page's 3.8s auto-advance to /battle is skipped.
 await shoot("/vs", "vs-reveal", base({
   phase: "vs",
   p1: { fighterId: "veteran", tokenName: "BTC", ready: true },
   p2: { fighterId: "architect", tokenName: "ETH", ready: true },
   wager: { p1: { amount: 25, locked: true }, p2: { amount: 25, locked: true } },
-}));
+}), "audience");
 
 await shoot("/battle", "battle-active", base({
   phase: "battle",

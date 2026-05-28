@@ -10,9 +10,12 @@
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-  --font-arcade: var(--font-arcade);
-  /* Phase E: --font-terminal now aliases Geist sans so the legacy `font-terminal`
-     Tailwind class renders as modern sans without touching 29 callsites. */
+  /* Phase F: --font-arcade rebound to Geist Mono so the legacy `font-arcade`
+     class renders as modern small-caps mono across 40+ existing callsites.
+     Original Press Start 2P remains available via the .font-pixel utility
+     below for the rare broadcast-eyebrow accent moments. */
+  --font-arcade: var(--font-geist-mono);
+  /* Phase E: --font-terminal already aliased to Geist sans. */
   --font-terminal: var(--font-geist-sans);
   --font-heading: var(--font-geist-sans);
 
@@ -169,7 +172,15 @@
 @layer utilities {
   .font-arcade {
     font-family: var(--font-arcade), ui-monospace, monospace;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+  /* Opt-in pixel font for rare broadcast-eyebrow accents (e.g. ON AIR, FINAL) */
+  .font-pixel {
+    font-family: var(--font-pixel, "Press Start 2P"), ui-monospace, monospace;
     letter-spacing: 0.02em;
+    text-transform: uppercase;
   }
   .font-terminal {
     font-family: var(--font-terminal), ui-monospace, monospace;

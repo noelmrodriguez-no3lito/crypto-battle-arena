@@ -9,13 +9,24 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ArenaBackdrop, BroadcastTicker, SponsorStrip } from "@/components/broadcast";
-
-const TOKEN_SUGGESTIONS = ["BTC", "ETH", "SOL", "DOGE", "XRP", "ADA", "BNB", "LINK", "PEPE", "TRUMP"];
+import {
+  TOKEN_SUGGESTIONS_BUILT_IN,
+  getCustomTokens,
+  addCustomToken,
+  removeCustomToken,
+} from "@/lib/match";
 
 export default function SelectPage() {
   const router = useRouter();
   const { state, role, send } = useMatch();
   const [hoverId, setHoverId] = useState<string | null>(null);
+  const [customTokens, setCustomTokens] = useState<string[]>([]);
+  const [adding, setAdding] = useState(false);
+  const [newToken, setNewToken] = useState("");
+
+  useEffect(() => {
+    setCustomTokens(getCustomTokens());
+  }, []);
 
   useEffect(() => {
     if (role === "audience" || role === "moderator") router.push("/spectate");
@@ -174,8 +185,8 @@ export default function SelectPage() {
                 className="font-arcade text-lg tracking-widest flex-1"
                 disabled={myReady}
               />
-              <div className="flex flex-wrap gap-1">
-                {TOKEN_SUGGESTIONS.map((t) => (
+              <div className="flex flex-wrap gap-1 items-center">
+                {TOKEN_SUGGESTIONS_BUILT_IN.map((t) => (
                   <button
                     key={t}
                     onClick={() => setToken(t)}
@@ -191,6 +202,97 @@ export default function SelectPage() {
                     {t}
                   </button>
                 ))}
+                {customTokens.map((t) => (
+                  <span
+                    key={t}
+                    className={`group inline-flex items-center font-arcade text-[10px] h-9 rounded border transition-all
+                      ${me.tokenName === t
+                        ? meColor === "red"
+                          ? "border-neon-red bg-neon-red/15 text-neon-red"
+                          : "border-neon-blue bg-neon-blue/15 text-neon-blue"
+                        : "border-amber-500/40 bg-amber-500/[0.05] text-amber-200 hover:border-amber-500/70"}
+                      ${myReady ? "opacity-40" : ""}`}
+                  >
+                    <button
+                      onClick={() => setToken(t)}
+                      disabled={myReady}
+                      className="px-2 h-full"
+                    >
+                      {t}
+                    </button>
+                    {!myReady && (
+                      <button
+                        onClick={() => {
+                          if (typeof window !== "undefined" && window.confirm(`Remove ${t} from your token list?`)) {
+                            setCustomTokens(removeCustomToken(t));
+                          }
+                        }}
+                        className="px-1.5 h-full text-foreground/40 hover:text-foreground/90 border-l border-amber-500/30"
+                        title={`Remove ${t}`}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </span>
+                ))}
+                {/* Add custom token */}
+                {!myReady && !adding && (
+                  <button
+                    onClick={() => setAdding(true)}
+                    className="font-arcade text-[10px] px-2 h-9 rounded border border-dashed border-foreground/30 text-foreground/50 hover:border-foreground/60 hover:text-foreground/90 transition-all"
+                    title="Add a custom token to your suggestions"
+                  >
+                    + Add token
+                  </button>
+                )}
+                {!myReady && adding && (
+                  <span className="inline-flex items-center gap-1">
+                    <Input
+                      value={newToken}
+                      onChange={(e) => setNewToken(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          const next = addCustomToken(newToken);
+                          setCustomTokens(next);
+                          if (next.includes(newToken.trim().toUpperCase())) {
+                            setToken(newToken.trim().toUpperCase());
+                          }
+                          setNewToken("");
+                          setAdding(false);
+                        }
+                        if (e.key === "Escape") {
+                          setNewToken("");
+                          setAdding(false);
+                        }
+                      }}
+                      placeholder="TICKER"
+                      maxLength={12}
+                      autoFocus
+                      className="font-arcade text-[10px] h-9 w-28 px-2 uppercase tracking-widest"
+                    />
+                    <button
+                      onClick={() => {
+                        const next = addCustomToken(newToken);
+                        setCustomTokens(next);
+                        if (next.includes(newToken.trim().toUpperCase())) {
+                          setToken(newToken.trim().toUpperCase());
+                        }
+                        setNewToken("");
+                        setAdding(false);
+                      }}
+                      disabled={newToken.trim().length < 2}
+                      className="font-arcade text-[10px] px-2 h-9 rounded border border-emerald-500/60 text-emerald-300 hover:bg-emerald-500/15 disabled:opacity-40"
+                    >
+                      Add
+                    </button>
+                    <button
+                      onClick={() => { setNewToken(""); setAdding(false); }}
+                      className="font-arcade text-[10px] px-2 h-9 rounded border border-foreground/20 text-foreground/50 hover:text-foreground/90"
+                    >
+                      Cancel
+                    </button>
+                  </span>
+                )}
               </div>
             </div>
           </div>

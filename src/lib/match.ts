@@ -139,6 +139,54 @@ export const DEFAULT_ROUNDS = 4; // Phase G: 4 typed rounds (opening / Q&A / cro
 export const STARTING_BALANCE = 100;
 export const WAGER_CHIPS = [5, 10, 25, 50, 100] as const;
 
+/** Canonical token suggestions shown on /select. Custom additions persist in localStorage. */
+export const TOKEN_SUGGESTIONS_BUILT_IN = [
+  "BTC", "ETH", "SOL", "DOGE", "XRP", "ADA", "BNB", "LINK", "PEPE", "TRUMP",
+] as const;
+
+export const CUSTOM_TOKENS_KEY = "cba:custom-tokens";
+
+export function getCustomTokens(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(CUSTOM_TOKENS_KEY);
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr.filter((t): t is string => typeof t === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveCustomTokens(list: string[]): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(CUSTOM_TOKENS_KEY, JSON.stringify(list));
+  } catch {
+    /* quota — ignore */
+  }
+}
+
+/** Normalize + add a custom token. Returns the new full list. Dedupes against built-ins and existing customs. */
+export function addCustomToken(token: string): string[] {
+  const normalized = token.trim().toUpperCase().slice(0, 12);
+  if (normalized.length < 2) return getCustomTokens();
+  if ((TOKEN_SUGGESTIONS_BUILT_IN as readonly string[]).includes(normalized)) {
+    return getCustomTokens();
+  }
+  const list = getCustomTokens();
+  if (list.includes(normalized)) return list;
+  const next = [...list, normalized];
+  saveCustomTokens(next);
+  return next;
+}
+
+export function removeCustomToken(token: string): string[] {
+  const list = getCustomTokens().filter((t) => t !== token);
+  saveCustomTokens(list);
+  return list;
+}
+
 export function makeInitialState(matchId: string = randomMatchId()): MatchState {
   return {
     matchId,

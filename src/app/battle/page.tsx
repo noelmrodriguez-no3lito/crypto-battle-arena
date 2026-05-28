@@ -271,6 +271,24 @@ function FighterHud({
   const glow = side === "left" ? "glow-red" : "glow-blue";
   const bar = side === "left" ? "bg-neon-red" : "bg-neon-blue";
 
+  // Detect vote increase → fire "+N" pop + portrait flash. Key changes
+  // force React to remount the animated nodes so the animation re-fires.
+  const prevVotesRef = useRef(votes);
+  const [boost, setBoost] = useState<{ amount: number; key: number } | null>(null);
+  useEffect(() => {
+    const delta = votes - prevVotesRef.current;
+    prevVotesRef.current = votes;
+    if (delta > 0) {
+      setBoost({ amount: delta, key: Date.now() });
+    }
+  }, [votes]);
+  // Clean up the boost after the longer animation (vote-pop = 1.4s)
+  useEffect(() => {
+    if (!boost) return;
+    const t = setTimeout(() => setBoost(null), 1500);
+    return () => clearTimeout(t);
+  }, [boost]);
+
   return (
     <div
       className={`relative p-3 sm:p-4 rounded-md border-2 bg-card/80 transition-all ${
@@ -281,14 +299,33 @@ function FighterHud({
       <span className={`absolute bottom-0 ${side === "left" ? "right-0" : "left-0"} w-3 h-3 border-b-2 border-r-2 ${side === "left" ? "" : "rotate-90"} ${isTurn ? borderTurn : "border-border"}`} />
 
       <div className={`flex gap-3 items-center ${flexAlign}`}>
-        <div
-          className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-sm overflow-hidden flex-shrink-0"
-          style={{
-            background: `radial-gradient(circle, ${char.color}55, transparent 70%)`,
-            boxShadow: `inset 0 0 14px ${char.color}33`,
-          }}
-        >
-          <Image src={char.portrait} alt={char.name} fill sizes="80px" className="object-contain" />
+        <div className="relative">
+          <div
+            key={boost ? `flash-${boost.key}` : "still"}
+            className={`relative w-16 h-16 sm:w-20 sm:h-20 rounded-sm overflow-hidden flex-shrink-0 ${boost ? "animate-boost-flash" : ""}`}
+            style={{
+              background: `radial-gradient(circle, ${char.color}55, transparent 70%)`,
+              boxShadow: boost
+                ? `inset 0 0 14px ${char.color}33, 0 0 24px ${char.color}aa`
+                : `inset 0 0 14px ${char.color}33`,
+              transition: "box-shadow 200ms ease-out",
+            }}
+          >
+            <Image src={char.portrait} alt={char.name} fill sizes="80px" className="object-contain" />
+          </div>
+
+          {/* +N badge floats up from above the portrait when votes hit */}
+          {boost && (
+            <span
+              key={`pop-${boost.key}`}
+              className={`pointer-events-none absolute -top-1 left-1/2 font-bold text-xl tabular-nums animate-vote-pop ${accent}`}
+              style={{
+                textShadow: `0 0 12px ${char.color}`,
+              }}
+            >
+              +{boost.amount}
+            </span>
+          )}
         </div>
         <div className={`${align} flex-1 min-w-0`}>
           <p className={`font-arcade text-[10px] ${accent} tracking-widest`}>

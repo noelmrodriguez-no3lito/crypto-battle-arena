@@ -99,12 +99,14 @@ export type MatchState = {
   updatedAt: number;
 };
 
+export type CrowdQuestionStatus = "pending" | "approved" | "rejected" | "asked";
+
 export type CrowdQuestion = {
   id: string;
   text: string;
   /** Per-browser-tab pseudonym so we can cap submissions per author. */
   authorId: string;
-  asked: boolean;
+  status: CrowdQuestionStatus;
   at: number;
 };
 
@@ -124,9 +126,9 @@ export function getCrowdAuthorId(): string {
   }
 }
 
-// v3: round model changed to 4 typed rounds, moderator role added.
-// Older snapshots are silently dropped on load.
-export const STORAGE_KEY = "cba:match:v3";
+// v4: crowd questions gained a status enum (pending / approved / rejected / asked)
+// with moderator approval as the new step. Older v3 snapshots are dropped on load.
+export const STORAGE_KEY = "cba:match:v4";
 export const CHANNEL_NAME = "cba:channel";
 export const ROLE_KEY = "cba:role";
 export const WALLET_KEY = (role: "p1" | "p2") => `cba:wallet:${role}`;
@@ -241,6 +243,8 @@ export type Action =
   | { type: "POSE_QUESTION"; text: string }
   | { type: "CLEAR_QUESTION" }
   | { type: "SUBMIT_CROWD_QUESTION"; text: string; authorId: string }
+  | { type: "APPROVE_CROWD_QUESTION"; id: string }
+  | { type: "REJECT_CROWD_QUESTION"; id: string }
   | { type: "ASK_CROWD_QUESTION"; id: string }
   | { type: "END_BATTLE"; at: number }
   | { type: "FORFEIT"; role: "p1" | "p2" }
@@ -440,27 +444,52 @@ export function reduce(state: MatchState, action: Action): MatchState {
     case "SUBMIT_CROWD_QUESTION": {
       const text = action.text.trim().slice(0, 240);
       if (text.length < 5) return state;
-      const already = state.crowdQuestions.filter((q) => q.authorId === action.authorId).length;
+      // Only count this author's questions that haven't been rejected against the cap.
+      const already = state.crowdQuestions.filter(
+        (q) => q.authorId === action.authorId && q.status !== "rejected"
+      ).length;
       if (already >= CROWD_QUESTIONS_PER_AUTHOR) return state;
       const q: CrowdQuestion = {
         id: Math.random().toString(36).slice(2, 10),
         text,
         authorId: action.authorId,
-        asked: false,
+        status: "pending",
         at: Date.now(),
       };
       return stamp({ ...state, crowdQuestions: [...state.crowdQuestions, q] });
     }
 
+    case "APPROVE_CROWD_QUESTION": {
+      const q = state.crowdQuestions.find((cq) => cq.id === action.id);
+      if (!q || q.status !== "pending") return state;
+      return stamp({
+        ...state,
+        crowdQuestions: state.crowdQuestions.map((cq) =>
+          cq.id === action.id ? { ...cq, status: "approved" as const } : cq
+        ),
+      });
+    }
+
+    case "REJECT_CROWD_QUESTION": {
+      const q = state.crowdQuestions.find((cq) => cq.id === action.id);
+      if (!q || q.status !== "pending") return state;
+      return stamp({
+        ...state,
+        crowdQuestions: state.crowdQuestions.map((cq) =>
+          cq.id === action.id ? { ...cq, status: "rejected" as const } : cq
+        ),
+      });
+    }
+
     case "ASK_CROWD_QUESTION": {
       const q = state.crowdQuestions.find((cq) => cq.id === action.id);
-      if (!q) return state;
+      if (!q || q.status !== "approved") return state;
       return stamp({
         ...state,
         activeQuestion: q.text,
         activeQuestionSource: "crowd",
         crowdQuestions: state.crowdQuestions.map((cq) =>
-          cq.id === action.id ? { ...cq, asked: true } : cq
+          cq.id === action.id ? { ...cq, status: "asked" as const } : cq
         ),
       });
     }

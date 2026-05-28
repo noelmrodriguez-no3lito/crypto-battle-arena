@@ -250,6 +250,25 @@ export default function BattlePage() {
           onVote={(target, postId) => send({ type: "VOTE", role: target, postId })}
         />
 
+        {/* MODERATOR PRESENCE — small centered chip between the feed and the dock */}
+        <div className="flex items-center justify-center">
+          <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full border border-purple-500/40 bg-purple-500/[0.06] backdrop-blur-sm">
+            <div className="relative w-6 h-6 rounded-full overflow-hidden border border-purple-500/60">
+              <Image
+                src="/fighters/moderator.png"
+                alt="Moderator"
+                fill
+                sizes="24px"
+                className="object-cover"
+              />
+            </div>
+            <span className="font-arcade text-[10px] text-purple-300 tracking-widest">
+              HOSTED BY MODERATOR
+            </span>
+            <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
+          </div>
+        </div>
+
         {/* INPUT DOCK */}
         {role === "p1" || role === "p2" ? (
           <Composer
@@ -296,6 +315,8 @@ export default function BattlePage() {
                   maxRounds={state.battle.rounds.max}
                   activeQuestion={state.activeQuestion}
                   crowdQuestions={state.crowdQuestions}
+                  onApprove={(id) => send({ type: "APPROVE_CROWD_QUESTION", id })}
+                  onReject={(id) => send({ type: "REJECT_CROWD_QUESTION", id })}
                   onAsk={(id) => send({ type: "ASK_CROWD_QUESTION", id })}
                   onClear={() => send({ type: "CLEAR_QUESTION" })}
                   onNextSpeaker={() => send({ type: "ROTATE_TURN", at: Date.now() })}
@@ -924,6 +945,8 @@ function ModeratorCrowdPanel({
   maxRounds,
   activeQuestion,
   crowdQuestions,
+  onApprove,
+  onReject,
   onAsk,
   onClear,
   onNextSpeaker,
@@ -933,17 +956,30 @@ function ModeratorCrowdPanel({
   maxRounds: number;
   activeQuestion: string | null;
   crowdQuestions: CrowdQuestion[];
+  onApprove: (id: string) => void;
+  onReject: (id: string) => void;
   onAsk: (id: string) => void;
   onClear: () => void;
   onNextSpeaker: () => void;
   onNextRound: () => void;
 }) {
   const isLast = round === maxRounds;
-  const pending = crowdQuestions.filter((q) => !q.asked);
-  const asked = crowdQuestions.filter((q) => q.asked);
+  const counts = {
+    pending: crowdQuestions.filter((q) => q.status === "pending").length,
+    approved: crowdQuestions.filter((q) => q.status === "approved").length,
+    asked: crowdQuestions.filter((q) => q.status === "asked").length,
+  };
+
+  // Sort: pending first, then approved, then asked, then rejected; within each by time.
+  const order: Record<CrowdQuestion["status"], number> = {
+    pending: 0, approved: 1, asked: 2, rejected: 3,
+  };
+  const sorted = [...crowdQuestions].sort(
+    (a, b) => order[a.status] - order[b.status] || a.at - b.at
+  );
 
   return (
-    <div className="rounded-md border-2 border-purple-500/50 bg-purple-500/[0.04] backdrop-blur-sm p-3 flex flex-col gap-3 max-h-[40vh]">
+    <div className="rounded-md border-2 border-purple-500/50 bg-purple-500/[0.04] backdrop-blur-sm p-3 flex flex-col gap-3 max-h-[42vh]">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3 flex-wrap">
           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-purple-500/15 border border-purple-500/40 text-purple-300 text-[10px] font-medium tracking-wider uppercase">
@@ -951,7 +987,7 @@ function ModeratorCrowdPanel({
             Moderator · Round {round}/{maxRounds} · Crowd
           </span>
           <span className="font-arcade text-[10px] text-foreground/60 tracking-widest">
-            {pending.length} PENDING · {asked.length} ASKED
+            {counts.pending} PENDING · {counts.approved} QUEUED · {counts.asked} ASKED
           </span>
           {activeQuestion && (
             <span className="font-arcade text-[10px] text-emerald-300 tracking-widest">
@@ -991,46 +1027,84 @@ function ModeratorCrowdPanel({
       <div className="overflow-y-auto -mx-1 px-1 flex-1 min-h-0">
         {crowdQuestions.length === 0 ? (
           <p className="text-sm text-foreground/50 italic px-2 py-6 text-center">
-            No crowd questions yet. They&apos;ll show up here as the audience submits.
+            No crowd questions yet. They&apos;ll show up here as the audience submits — you approve before asking.
           </p>
         ) : (
           <ul className="space-y-1.5">
-            {[...crowdQuestions].sort((a, b) => Number(a.asked) - Number(b.asked) || a.at - b.at).map((q) => (
-              <li
-                key={q.id}
-                className={`flex items-start gap-2 rounded border p-2 transition-colors ${
-                  q.asked
-                    ? "border-border/30 bg-background/20 opacity-50"
-                    : "border-emerald-500/40 bg-emerald-500/[0.05] hover:border-emerald-500"
-                }`}
-              >
-                <p className="flex-1 text-sm text-foreground/90 leading-snug">
-                  {q.text}
-                </p>
-                <span className="font-arcade text-[9px] text-foreground/40 tracking-widest mt-0.5">
-                  @{q.authorId.slice(0, 4)}
-                </span>
-                {q.asked ? (
-                  <span className="font-arcade text-[9px] text-emerald-400/70 tracking-widest mt-1">
-                    ASKED
+            {sorted.map((q) => {
+              const tone =
+                q.status === "pending"
+                  ? "border-amber-500/40 bg-amber-500/[0.05] hover:border-amber-500"
+                  : q.status === "approved"
+                  ? "border-emerald-500/40 bg-emerald-500/[0.05] hover:border-emerald-500"
+                  : "border-border/30 bg-background/20 opacity-50";
+              return (
+                <li key={q.id} className={`flex items-start gap-2 rounded border p-2 transition-colors ${tone}`}>
+                  <p className={`flex-1 text-sm leading-snug ${q.status === "rejected" ? "line-through text-foreground/40" : "text-foreground/90"}`}>
+                    {q.text}
+                  </p>
+                  <span className="font-arcade text-[9px] text-foreground/40 tracking-widest mt-0.5 flex-shrink-0">
+                    @{q.authorId.slice(0, 4)}
                   </span>
-                ) : (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => onAsk(q.id)}
-                    className="font-arcade text-[10px] h-7 px-3 border-emerald-500/40 hover:bg-emerald-500/15 hover:text-emerald-200 flex-shrink-0"
-                  >
-                    Ask
-                  </Button>
-                )}
-              </li>
-            ))}
+                  <div className="flex gap-1.5 flex-shrink-0">
+                    {q.status === "pending" && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => onApprove(q.id)}
+                          className="font-arcade text-[10px] h-7 px-3 border-emerald-500/50 text-emerald-300 hover:bg-emerald-500/15"
+                        >
+                          ✓ Approve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => onReject(q.id)}
+                          className="font-arcade text-[10px] h-7 px-3 border-rose-500/50 text-rose-300 hover:bg-rose-500/15"
+                        >
+                          × Reject
+                        </Button>
+                      </>
+                    )}
+                    {q.status === "approved" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onAsk(q.id)}
+                        className="font-arcade text-[10px] h-7 px-3 border-emerald-500/40 hover:bg-emerald-500/15 hover:text-emerald-200"
+                      >
+                        Ask →
+                      </Button>
+                    )}
+                    {q.status === "asked" && (
+                      <span className="font-arcade text-[9px] text-emerald-400/70 tracking-widest mt-1">
+                        ASKED
+                      </span>
+                    )}
+                    {q.status === "rejected" && (
+                      <span className="font-arcade text-[9px] text-rose-300/70 tracking-widest mt-1">
+                        REJECTED
+                      </span>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
     </div>
   );
+}
+
+function statusBadge(status: CrowdQuestion["status"]): { glyph: string; color: string; label: string } {
+  switch (status) {
+    case "pending":  return { glyph: "○", color: "text-amber-400",   label: "PENDING" };
+    case "approved": return { glyph: "→", color: "text-emerald-300", label: "QUEUED" };
+    case "asked":    return { glyph: "✓", color: "text-emerald-400", label: "ASKED" };
+    case "rejected": return { glyph: "×", color: "text-foreground/40", label: "REJECTED" };
+  }
 }
 
 function AudienceCrowdPanel({
@@ -1053,7 +1127,9 @@ function AudienceCrowdPanel({
   }, []);
 
   const mine = authorId ? crowdQuestions.filter((q) => q.authorId === authorId) : [];
-  const remaining = CROWD_QUESTIONS_PER_AUTHOR - mine.length;
+  // Rejected questions don't count against the limit so a user can resubmit.
+  const nonRejected = mine.filter((q) => q.status !== "rejected").length;
+  const remaining = CROWD_QUESTIONS_PER_AUTHOR - nonRejected;
   const canSubmit = remaining > 0 && text.trim().length >= 5;
 
   const submit = () => {
@@ -1066,7 +1142,7 @@ function AudienceCrowdPanel({
     <div className="rounded-md border-2 border-emerald-500/40 bg-emerald-500/[0.04] backdrop-blur-sm p-3 flex flex-col gap-3">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <p className="font-arcade text-[10px] text-emerald-300 tracking-widest">
-          CROWD ROUND · YOU CAN SUBMIT {CROWD_QUESTIONS_PER_AUTHOR} QUESTIONS
+          CROWD ROUND · MODERATOR APPROVES BEFORE ASKING
         </p>
         <p className="font-arcade text-[10px] text-foreground/60 tracking-widest">
           {remaining} REMAINING
@@ -1099,17 +1175,20 @@ function AudienceCrowdPanel({
             YOUR SUBMISSIONS
           </p>
           <ul className="space-y-1">
-            {mine.map((q) => (
-              <li key={q.id} className="text-sm text-foreground/80 flex items-start gap-2">
-                <span className={q.asked ? "text-emerald-400" : "text-foreground/40"}>
-                  {q.asked ? "✓" : "○"}
-                </span>
-                <span className="flex-1 truncate">{q.text}</span>
-                <span className="font-arcade text-[9px] text-foreground/40 tracking-widest mt-0.5">
-                  {q.asked ? "ASKED" : "PENDING"}
-                </span>
-              </li>
-            ))}
+            {mine.map((q) => {
+              const { glyph, color, label } = statusBadge(q.status);
+              return (
+                <li key={q.id} className="text-sm text-foreground/80 flex items-start gap-2">
+                  <span className={color}>{glyph}</span>
+                  <span className={`flex-1 truncate ${q.status === "rejected" ? "line-through text-foreground/40" : ""}`}>
+                    {q.text}
+                  </span>
+                  <span className={`font-arcade text-[9px] tracking-widest mt-0.5 ${color}`}>
+                    {label}
+                  </span>
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}

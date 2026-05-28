@@ -15,7 +15,7 @@ const browser = await puppeteer.launch({
 async function shoot(route, label, snapshot, role = "p1") {
   const page = await browser.newPage();
   await page.setViewport({ width: 1280, height: 900 });
-  await page.goto(URL + "/", { waitUntil: "networkidle2" });
+  await page.goto(URL + "/", { waitUntil: "domcontentloaded" });
   if (snapshot === null) {
     await page.evaluate(() => {
       localStorage.removeItem("cba:match:v2");
@@ -27,7 +27,7 @@ async function shoot(route, label, snapshot, role = "p1") {
       sessionStorage.setItem("cba:role", r);
     }, { snap: snapshot, r: role });
   }
-  await page.goto(URL + route, { waitUntil: "networkidle2" });
+  await page.goto(URL + route, { waitUntil: "domcontentloaded" });
   await new Promise((r) => setTimeout(r, 1800));
   const shot = `${OUT}/review-${label}.png`;
   await page.screenshot({ path: shot, fullPage: true });

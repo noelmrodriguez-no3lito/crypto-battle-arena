@@ -13,7 +13,6 @@ import {
   ArenaBackdrop,
   BroadcastTicker,
   LowerThird,
-  RoundBreak,
   StatCallout,
 } from "@/components/broadcast";
 
@@ -44,11 +43,9 @@ export default function BattlePage() {
   // ── Broadcast overlays state ─────────────────────────────────────────
   const [showSpeakerLT, setShowSpeakerLT] = useState(false);
   const [callout, setCallout] = useState<{ label: string; value: string; body?: string; key: number } | null>(null);
-  const [showRoundBreak, setShowRoundBreak] = useState(false);
   const [shakeKey, setShakeKey] = useState(0);
   const lastSpeakerRef = useRef<"p1" | "p2">("p1");
   const lastVotesRef = useRef<{ p1: number; p2: number }>({ p1: 0, p2: 0 });
-  const lastRoundRef = useRef<number>(1);
   const speakerLTHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Auto-rotate turn on timeout ──
@@ -95,15 +92,6 @@ export default function BattlePage() {
       setShakeKey((k) => k + 1);
     }
   }, [state.votes.p1, state.votes.p2, p1Token, p2Token, p1Char, p2Char]);
-
-  // ── Detect round change → interstitial ──
-  useEffect(() => {
-    if (state.battle.rounds.current === lastRoundRef.current) return;
-    if (state.battle.rounds.current > lastRoundRef.current && state.battle.rounds.current > 1) {
-      setShowRoundBreak(true);
-    }
-    lastRoundRef.current = state.battle.rounds.current;
-  }, [state.battle.rounds.current]);
 
   const isMyTurn = (role === "p1" || role === "p2") && state.battle.turnOwner === role;
   const canVote = role === "audience" && state.phase === "battle";
@@ -220,6 +208,11 @@ export default function BattlePage() {
             mySide={role}
             onSubmit={(text, mode) => send({ type: "POST_ARGUMENT", role, text, mode })}
             onEndTurn={() => send({ type: "ROTATE_TURN", at: Date.now() })}
+            onForfeit={() => {
+              if (typeof window !== "undefined" && window.confirm("Forfeit the match? Opponent takes the pot.")) {
+                send({ type: "FORFEIT", role });
+              }
+            }}
           />
         ) : (
           <AudienceBar
@@ -246,17 +239,6 @@ export default function BattlePage() {
           onDone={() => setCallout(null)}
         />
       )}
-      <RoundBreak
-        round={state.battle.rounds.current}
-        totalRounds={state.battle.rounds.max}
-        p1Token={p1Token}
-        p2Token={p2Token}
-        p1Pct={p1Pct}
-        p2Pct={p2Pct}
-        visible={showRoundBreak}
-        onDone={() => setShowRoundBreak(false)}
-      />
-
       <BroadcastTicker items={tickerItems} accent="yellow" />
     </main>
   );
@@ -449,12 +431,14 @@ function Composer({
   mySide,
   onSubmit,
   onEndTurn,
+  onForfeit,
 }: {
   disabled: boolean;
   speakerToken: string;
   mySide: "p1" | "p2";
   onSubmit: (text: string, mode: import("@/lib/match").TurnInputMode) => void;
   onEndTurn: () => void;
+  onForfeit: () => void;
 }) {
   const [text, setText] = useState("");
   const [mode, setMode] = useState<"text" | "voice">("text");
@@ -513,11 +497,21 @@ function Composer({
   if (disabled) {
     // Distinct lockout treatment — no text input visible, just a wait card
     return (
-      <div className="relative rounded-md border-2 border-dashed border-border bg-muted/30 px-4 py-5 flex items-center justify-center gap-3">
-        <span className="w-2 h-2 rounded-full bg-neon-yellow animate-pulse-glow" />
-        <p className="font-arcade text-xs text-muted-foreground tracking-widest">
-          🎤 {speakerToken || "OPPONENT"} ON THE MIC · WAIT YOUR TURN
-        </p>
+      <div className="relative rounded-md border-2 border-dashed border-border bg-muted/30 px-4 py-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="w-2 h-2 rounded-full bg-neon-yellow animate-pulse-glow" />
+          <p className="font-arcade text-xs text-muted-foreground tracking-widest">
+            🎤 {speakerToken || "OPPONENT"} ON THE MIC · WAIT YOUR TURN
+          </p>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={onForfeit}
+          className="font-arcade text-[10px] h-7 text-foreground/60 border-foreground/20 hover:text-foreground hover:border-foreground/40"
+        >
+          Forfeit
+        </Button>
       </div>
     );
   }
@@ -577,18 +571,27 @@ function Composer({
       </div>
       <div className="flex items-center justify-between gap-3">
         <p className="font-arcade text-[9px] text-muted-foreground">{text.length}/280</p>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => {
-            if (listening) stopVoice();
-            onEndTurn();
-          }}
-          className="font-arcade text-[10px] h-7 border-neon-green/60 hover:bg-neon-green/15 hover:text-neon-green"
-          title="Pass the mic. Remaining time forfeit."
-        >
-          ⏭ END TURN
-        </Button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onForfeit}
+            className="font-arcade text-[10px] text-foreground/40 hover:text-foreground/80 transition-colors px-1"
+            title="Forfeit the match. Opponent takes the pot."
+          >
+            Forfeit
+          </button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              if (listening) stopVoice();
+              onEndTurn();
+            }}
+            className="font-arcade text-[10px] h-7 border-neon-green/60 hover:bg-neon-green/15 hover:text-neon-green"
+            title="Pass the mic. Remaining time forfeit."
+          >
+            ⏭ END TURN
+          </Button>
+        </div>
       </div>
     </div>
   );

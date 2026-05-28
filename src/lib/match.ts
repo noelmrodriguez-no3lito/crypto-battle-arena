@@ -128,6 +128,7 @@ export type Action =
   | { type: "VOTE"; role: "p1" | "p2"; postId?: string }
   | { type: "ROTATE_TURN"; at: number }
   | { type: "END_BATTLE"; at: number }
+  | { type: "FORFEIT"; role: "p1" | "p2" }
   | { type: "AUDIENCE_PING"; delta: 1 | -1 }
   | { type: "HOST_SYNC"; snapshot: MatchState };
 
@@ -280,6 +281,18 @@ export function reduce(state: MatchState, action: Action): MatchState {
       const { p1, p2 } = state.votes;
       const winner = p1 === p2 ? "tie" : p1 > p2 ? "p1" : "p2";
       return stamp({ ...state, phase: "results", winner, battle: { ...state.battle, turnEndsAt: null } });
+    }
+
+    case "FORFEIT": {
+      // Forfeiter loses regardless of vote count. Opponent takes the pot.
+      if (state.phase !== "battle" && state.phase !== "vs") return state;
+      const winner = action.role === "p1" ? "p2" : "p1";
+      return stamp({
+        ...state,
+        phase: "results",
+        winner,
+        battle: { ...state.battle, turnEndsAt: null },
+      });
     }
 
     case "AUDIENCE_PING":

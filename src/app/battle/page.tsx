@@ -6,6 +6,7 @@ import Image from "next/image";
 import { getFighter, type Fighter } from "@/data/fighters";
 import { useMatch } from "@/lib/use-match";
 import { formatClock, DEFAULT_TURN_MS, roundType, roundLabel } from "@/lib/match";
+import { filterQuestions, QUESTION_POOL, type Question } from "@/data/questions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -135,7 +136,7 @@ export default function BattlePage() {
 
       <div
         key={shakeKey || "still"}
-        className="flex-1 grid grid-rows-[auto_auto_1fr_auto] gap-3 px-3 sm:px-6 py-3 sm:py-4 min-h-0 animate-hud-shake"
+        className="flex-1 flex flex-col gap-3 px-3 sm:px-6 py-3 sm:py-4 min-h-0 animate-hud-shake"
       >
         {/* HUD ROW */}
         <div className="grid grid-cols-[1fr_auto_1fr] items-stretch gap-2 sm:gap-4">
@@ -195,6 +196,29 @@ export default function BattlePage() {
           <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-px bg-foreground/40" />
         </div>
 
+        {/* ACTIVE QUESTION (Round 2 only, when moderator has posed one) */}
+        {currentRoundType === "moderator_qa" && state.activeQuestion && (
+          <div className="rounded-md border-2 border-purple-500/50 bg-purple-500/[0.06] p-3 sm:p-4 flex items-start gap-3 sm:gap-4">
+            <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-md overflow-hidden border border-purple-500/50 flex-shrink-0">
+              <Image
+                src="/fighters/moderator.png"
+                alt="Moderator"
+                fill
+                sizes="56px"
+                className="object-contain"
+              />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-arcade text-[10px] text-purple-300 tracking-widest">
+                QUESTION FROM THE MODERATOR
+              </p>
+              <p className="font-sans text-lg sm:text-xl text-foreground mt-1 leading-snug">
+                &ldquo;{state.activeQuestion}&rdquo;
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* ARGUMENT FEED */}
         <ArgumentFeed
           posts={state.battle.posts}
@@ -221,22 +245,43 @@ export default function BattlePage() {
             }}
           />
         ) : role === "moderator" ? (
-          <ModeratorPanel
-            round={state.battle.rounds.current}
-            maxRounds={state.battle.rounds.max}
-            speakerToken={state.battle.turnOwner === "p1" ? p1Token : p2Token}
-            isPaced={isModeratorPacedRound}
-            onNextSpeaker={() => send({ type: "ROTATE_TURN", at: Date.now() })}
-            onNextRound={() => {
-              const last = state.battle.rounds.current === state.battle.rounds.max;
-              const msg = last
-                ? "End the match and go to results?"
-                : `End Round ${state.battle.rounds.current} and start Round ${state.battle.rounds.current + 1}?`;
-              if (typeof window !== "undefined" && window.confirm(msg)) {
-                send({ type: "NEXT_ROUND", at: Date.now() });
-              }
-            }}
-          />
+          currentRoundType === "moderator_qa" ? (
+            <ModeratorQAPanel
+              round={state.battle.rounds.current}
+              maxRounds={state.battle.rounds.max}
+              activeQuestion={state.activeQuestion}
+              tokens={[p1Token, p2Token].filter(Boolean)}
+              onPose={(text) => send({ type: "POSE_QUESTION", text })}
+              onClear={() => send({ type: "CLEAR_QUESTION" })}
+              onNextSpeaker={() => send({ type: "ROTATE_TURN", at: Date.now() })}
+              onNextRound={() => {
+                const last = state.battle.rounds.current === state.battle.rounds.max;
+                const msg = last
+                  ? "End the match and go to results?"
+                  : `End Round ${state.battle.rounds.current} and start Round ${state.battle.rounds.current + 1}?`;
+                if (typeof window !== "undefined" && window.confirm(msg)) {
+                  send({ type: "NEXT_ROUND", at: Date.now() });
+                }
+              }}
+            />
+          ) : (
+            <ModeratorPanel
+              round={state.battle.rounds.current}
+              maxRounds={state.battle.rounds.max}
+              speakerToken={state.battle.turnOwner === "p1" ? p1Token : p2Token}
+              isPaced={isModeratorPacedRound}
+              onNextSpeaker={() => send({ type: "ROTATE_TURN", at: Date.now() })}
+              onNextRound={() => {
+                const last = state.battle.rounds.current === state.battle.rounds.max;
+                const msg = last
+                  ? "End the match and go to results?"
+                  : `End Round ${state.battle.rounds.current} and start Round ${state.battle.rounds.current + 1}?`;
+                if (typeof window !== "undefined" && window.confirm(msg)) {
+                  send({ type: "NEXT_ROUND", at: Date.now() });
+                }
+              }}
+            />
+          )
         ) : (
           <AudienceBar
             onVote={(target) => send({ type: "VOTE", role: target })}
@@ -406,7 +451,7 @@ function ArgumentFeed({
   return (
     <div
       ref={scrollerRef}
-      className="min-h-0 overflow-y-auto rounded-md border border-border bg-background/30 p-3 sm:p-4 space-y-3"
+      className="flex-1 min-h-0 overflow-y-auto rounded-md border border-border bg-background/30 p-3 sm:p-4 space-y-3"
     >
       {posts.length === 0 ? (
         <div className="h-full flex flex-col items-center justify-center py-12 gap-3">
@@ -671,6 +716,162 @@ function VoiceVisualizer() {
           }}
         />
       ))}
+    </div>
+  );
+}
+
+function ModeratorQAPanel({
+  round,
+  maxRounds,
+  activeQuestion,
+  tokens,
+  onPose,
+  onClear,
+  onNextSpeaker,
+  onNextRound,
+}: {
+  round: number;
+  maxRounds: number;
+  activeQuestion: string | null;
+  tokens: string[];
+  onPose: (text: string) => void;
+  onClear: () => void;
+  onNextSpeaker: () => void;
+  onNextRound: () => void;
+}) {
+  const [tab, setTab] = useState<"general" | "tokens" | "all">("tokens");
+  const [custom, setCustom] = useState("");
+  const isLast = round === maxRounds;
+
+  const questions: Question[] =
+    tab === "general"
+      ? QUESTION_POOL.filter((q) => q.tokens.length === 0)
+      : tab === "tokens"
+      ? filterQuestions(tokens).filter((q) => q.tokens.length > 0)
+      : QUESTION_POOL;
+
+  const askCustom = () => {
+    const t = custom.trim();
+    if (t.length < 5) return;
+    onPose(t);
+    setCustom("");
+  };
+
+  return (
+    <div className="rounded-md border-2 border-purple-500/50 bg-purple-500/[0.04] backdrop-blur-sm p-3 flex flex-col gap-3 max-h-[40vh]">
+      {/* Header row: status + flow controls */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-purple-500/15 border border-purple-500/40 text-purple-300 text-[10px] font-medium tracking-wider uppercase">
+            <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
+            Moderator · Round {round}/{maxRounds} · Q&A
+          </span>
+          {activeQuestion && (
+            <span className="font-arcade text-[10px] text-purple-200 tracking-widest">
+              QUESTION LIVE
+            </span>
+          )}
+        </div>
+        <div className="flex gap-2">
+          {activeQuestion && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onClear}
+              className="font-arcade text-[10px] h-8 border-foreground/30 hover:border-foreground/60"
+            >
+              Clear question
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onNextSpeaker}
+            className="font-arcade text-[10px] h-8 border-foreground/30 hover:border-foreground/60"
+          >
+            ⏭ Next speaker
+          </Button>
+          <Button
+            size="sm"
+            onClick={onNextRound}
+            className="font-arcade text-[10px] h-8 px-4 bg-purple-500/90 hover:bg-purple-500 text-white shadow-[0_0_18px_rgba(168,85,247,0.45)]"
+          >
+            {isLast ? "End match →" : "End round →"}
+          </Button>
+        </div>
+      </div>
+
+      {/* Custom question input */}
+      <div className="flex gap-2">
+        <Input
+          value={custom}
+          onChange={(e) => setCustom(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") askCustom(); }}
+          placeholder="Type your own question…"
+          maxLength={240}
+          className="font-sans text-base flex-1"
+        />
+        <Button
+          size="sm"
+          onClick={askCustom}
+          disabled={custom.trim().length < 5}
+          className="font-arcade text-[10px] h-9 px-4 bg-purple-500/90 hover:bg-purple-500 text-white"
+        >
+          Ask custom →
+        </Button>
+      </div>
+
+      {/* Filter tabs */}
+      <div className="flex gap-1 border-b border-border/60 pb-1">
+        {(["tokens", "general", "all"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`px-3 py-1 rounded-t text-xs tracking-wider uppercase font-medium transition-colors ${
+              tab === t
+                ? "bg-purple-500/15 text-purple-200 border-b-2 border-purple-500"
+                : "text-foreground/50 hover:text-foreground/80"
+            }`}
+          >
+            {t === "tokens" ? `Both tokens (${tokens.join(" · ") || "—"})` : t}
+          </button>
+        ))}
+      </div>
+
+      {/* Question list */}
+      <div className="overflow-y-auto -mx-1 px-1 flex-1 min-h-0">
+        <ul className="space-y-1.5">
+          {questions.length === 0 ? (
+            <li className="text-sm text-foreground/50 italic px-2 py-3">
+              No questions for these tokens yet. Use the custom input above.
+            </li>
+          ) : (
+            questions.map((q) => (
+              <li
+                key={q.id}
+                className="flex items-start gap-2 rounded border border-border/40 bg-background/30 p-2 hover:border-purple-500/40 transition-colors"
+              >
+                <p className="flex-1 text-sm text-foreground/90 leading-snug">
+                  {q.text}
+                </p>
+                {q.tokens.length > 0 && (
+                  <span className="font-arcade text-[9px] text-foreground/50 tracking-widest mt-0.5">
+                    {q.tokens.join("/")}
+                  </span>
+                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onPose(q.text)}
+                  className="font-arcade text-[10px] h-7 px-3 border-purple-500/40 hover:bg-purple-500/15 hover:text-purple-200 flex-shrink-0"
+                >
+                  Ask
+                </Button>
+              </li>
+            ))
+          )}
+        </ul>
+      </div>
     </div>
   );
 }

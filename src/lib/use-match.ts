@@ -47,6 +47,7 @@ const SSR_INITIAL: MatchState = {
   votes: { p1: 0, p2: 0 },
   audienceCount: 0,
   winner: null,
+  activeQuestion: null,
   updatedAt: 0,
 };
 

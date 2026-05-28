@@ -90,6 +90,8 @@ export type MatchState = {
   votes: { p1: number; p2: number };
   audienceCount: number;
   winner: "p1" | "p2" | "tie" | null;
+  /** Round 2: the moderator's currently displayed question (null when none). */
+  activeQuestion: string | null;
   updatedAt: number;
 };
 
@@ -131,6 +133,7 @@ export function makeInitialState(matchId: string = randomMatchId()): MatchState 
     votes: { p1: 0, p2: 0 },
     audienceCount: 0,
     winner: null,
+    activeQuestion: null,
     updatedAt: Date.now(),
   };
 }
@@ -156,6 +159,8 @@ export type Action =
   | { type: "VOTE"; role: "p1" | "p2"; postId?: string }
   | { type: "ROTATE_TURN"; at: number }
   | { type: "NEXT_ROUND"; at: number }
+  | { type: "POSE_QUESTION"; text: string }
+  | { type: "CLEAR_QUESTION" }
   | { type: "END_BATTLE"; at: number }
   | { type: "FORFEIT"; role: "p1" | "p2" }
   | { type: "AUDIENCE_PING"; delta: 1 | -1 }
@@ -323,11 +328,13 @@ export function reduce(state: MatchState, action: Action): MatchState {
           ...state,
           phase: "results",
           winner,
+          activeQuestion: null,
           battle: { ...state.battle, turnEndsAt: null },
         });
       }
       return stamp({
         ...state,
+        activeQuestion: null,
         battle: {
           ...state.battle,
           rounds: { ...state.battle.rounds, current: next },
@@ -336,6 +343,12 @@ export function reduce(state: MatchState, action: Action): MatchState {
         },
       });
     }
+
+    case "POSE_QUESTION":
+      return stamp({ ...state, activeQuestion: action.text.trim().slice(0, 240) });
+
+    case "CLEAR_QUESTION":
+      return stamp({ ...state, activeQuestion: null });
 
     case "FORFEIT": {
       // Forfeiter loses regardless of vote count. Opponent takes the pot.

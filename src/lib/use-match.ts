@@ -48,6 +48,8 @@ const SSR_INITIAL: MatchState = {
   audienceCount: 0,
   winner: null,
   activeQuestion: null,
+  activeQuestionSource: null,
+  crowdQuestions: [],
   updatedAt: 0,
 };
 

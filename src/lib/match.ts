@@ -90,10 +90,39 @@ export type MatchState = {
   votes: { p1: number; p2: number };
   audienceCount: number;
   winner: "p1" | "p2" | "tie" | null;
-  /** Round 2: the moderator's currently displayed question (null when none). */
+  /** Rounds 2 + 3: the currently displayed question (null when none). */
   activeQuestion: string | null;
+  /** Where the active question came from. */
+  activeQuestionSource: "moderator" | "crowd" | null;
+  /** Round 3: audience-submitted question queue. */
+  crowdQuestions: CrowdQuestion[];
   updatedAt: number;
 };
+
+export type CrowdQuestion = {
+  id: string;
+  text: string;
+  /** Per-browser-tab pseudonym so we can cap submissions per author. */
+  authorId: string;
+  asked: boolean;
+  at: number;
+};
+
+export const CROWD_QUESTIONS_PER_AUTHOR = 2;
+export const CROWD_QUESTION_AUTHOR_KEY = "cba:crowd:author";
+
+export function getCrowdAuthorId(): string {
+  if (typeof window === "undefined") return "ssr";
+  try {
+    const existing = sessionStorage.getItem(CROWD_QUESTION_AUTHOR_KEY);
+    if (existing) return existing;
+    const id = Math.random().toString(36).slice(2, 10);
+    sessionStorage.setItem(CROWD_QUESTION_AUTHOR_KEY, id);
+    return id;
+  } catch {
+    return "anon";
+  }
+}
 
 // v3: round model changed to 4 typed rounds, moderator role added.
 // Older snapshots are silently dropped on load.
@@ -134,6 +163,8 @@ export function makeInitialState(matchId: string = randomMatchId()): MatchState 
     audienceCount: 0,
     winner: null,
     activeQuestion: null,
+    activeQuestionSource: null,
+    crowdQuestions: [],
     updatedAt: Date.now(),
   };
 }
@@ -161,6 +192,8 @@ export type Action =
   | { type: "NEXT_ROUND"; at: number }
   | { type: "POSE_QUESTION"; text: string }
   | { type: "CLEAR_QUESTION" }
+  | { type: "SUBMIT_CROWD_QUESTION"; text: string; authorId: string }
+  | { type: "ASK_CROWD_QUESTION"; id: string }
   | { type: "END_BATTLE"; at: number }
   | { type: "FORFEIT"; role: "p1" | "p2" }
   | { type: "AUDIENCE_PING"; delta: 1 | -1 }
@@ -329,12 +362,14 @@ export function reduce(state: MatchState, action: Action): MatchState {
           phase: "results",
           winner,
           activeQuestion: null,
+          activeQuestionSource: null,
           battle: { ...state.battle, turnEndsAt: null },
         });
       }
       return stamp({
         ...state,
         activeQuestion: null,
+        activeQuestionSource: null,
         battle: {
           ...state.battle,
           rounds: { ...state.battle.rounds, current: next },
@@ -345,10 +380,42 @@ export function reduce(state: MatchState, action: Action): MatchState {
     }
 
     case "POSE_QUESTION":
-      return stamp({ ...state, activeQuestion: action.text.trim().slice(0, 240) });
+      return stamp({
+        ...state,
+        activeQuestion: action.text.trim().slice(0, 240),
+        activeQuestionSource: "moderator",
+      });
 
     case "CLEAR_QUESTION":
-      return stamp({ ...state, activeQuestion: null });
+      return stamp({ ...state, activeQuestion: null, activeQuestionSource: null });
+
+    case "SUBMIT_CROWD_QUESTION": {
+      const text = action.text.trim().slice(0, 240);
+      if (text.length < 5) return state;
+      const already = state.crowdQuestions.filter((q) => q.authorId === action.authorId).length;
+      if (already >= CROWD_QUESTIONS_PER_AUTHOR) return state;
+      const q: CrowdQuestion = {
+        id: Math.random().toString(36).slice(2, 10),
+        text,
+        authorId: action.authorId,
+        asked: false,
+        at: Date.now(),
+      };
+      return stamp({ ...state, crowdQuestions: [...state.crowdQuestions, q] });
+    }
+
+    case "ASK_CROWD_QUESTION": {
+      const q = state.crowdQuestions.find((cq) => cq.id === action.id);
+      if (!q) return state;
+      return stamp({
+        ...state,
+        activeQuestion: q.text,
+        activeQuestionSource: "crowd",
+        crowdQuestions: state.crowdQuestions.map((cq) =>
+          cq.id === action.id ? { ...cq, asked: true } : cq
+        ),
+      });
+    }
 
     case "FORFEIT": {
       // Forfeiter loses regardless of vote count. Opponent takes the pot.

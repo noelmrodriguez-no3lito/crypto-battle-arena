@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { getFighter, type Fighter } from "@/data/fighters";
 import { useMatch } from "@/lib/use-match";
-import { formatClock, DEFAULT_TURN_MS, roundType, roundLabel } from "@/lib/match";
+import { formatClock, DEFAULT_TURN_MS, roundType, roundLabel, getCrowdAuthorId, CROWD_QUESTIONS_PER_AUTHOR, type CrowdQuestion } from "@/lib/match";
 import { filterQuestions, QUESTION_POOL, type Question } from "@/data/questions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -196,21 +196,41 @@ export default function BattlePage() {
           <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-px bg-foreground/40" />
         </div>
 
-        {/* ACTIVE QUESTION (Round 2 only, when moderator has posed one) */}
-        {currentRoundType === "moderator_qa" && state.activeQuestion && (
-          <div className="rounded-md border-2 border-purple-500/50 bg-purple-500/[0.06] p-3 sm:p-4 flex items-start gap-3 sm:gap-4">
-            <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-md overflow-hidden border border-purple-500/50 flex-shrink-0">
-              <Image
-                src="/fighters/moderator.png"
-                alt="Moderator"
-                fill
-                sizes="56px"
-                className="object-contain"
-              />
+        {/* ACTIVE QUESTION (rounds 2 + 3, when one is posed) */}
+        {state.activeQuestion && (currentRoundType === "moderator_qa" || currentRoundType === "crowd") && (
+          <div
+            className={`rounded-md border-2 p-3 sm:p-4 flex items-start gap-3 sm:gap-4 ${
+              state.activeQuestionSource === "crowd"
+                ? "border-emerald-500/50 bg-emerald-500/[0.06]"
+                : "border-purple-500/50 bg-purple-500/[0.06]"
+            }`}
+          >
+            <div
+              className={`relative w-12 h-12 sm:w-14 sm:h-14 rounded-md overflow-hidden border flex-shrink-0 grid place-items-center ${
+                state.activeQuestionSource === "crowd"
+                  ? "border-emerald-500/50 bg-emerald-500/10"
+                  : "border-purple-500/50"
+              }`}
+            >
+              {state.activeQuestionSource === "crowd" ? (
+                <span className="text-2xl">◉</span>
+              ) : (
+                <Image
+                  src="/fighters/moderator.png"
+                  alt="Moderator"
+                  fill
+                  sizes="56px"
+                  className="object-contain"
+                />
+              )}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-arcade text-[10px] text-purple-300 tracking-widest">
-                QUESTION FROM THE MODERATOR
+              <p
+                className={`font-arcade text-[10px] tracking-widest ${
+                  state.activeQuestionSource === "crowd" ? "text-emerald-300" : "text-purple-300"
+                }`}
+              >
+                {state.activeQuestionSource === "crowd" ? "QUESTION FROM THE CROWD" : "QUESTION FROM THE MODERATOR"}
               </p>
               <p className="font-sans text-lg sm:text-xl text-foreground mt-1 leading-snug">
                 &ldquo;{state.activeQuestion}&rdquo;
@@ -245,43 +265,66 @@ export default function BattlePage() {
             }}
           />
         ) : role === "moderator" ? (
-          currentRoundType === "moderator_qa" ? (
-            <ModeratorQAPanel
-              round={state.battle.rounds.current}
-              maxRounds={state.battle.rounds.max}
-              activeQuestion={state.activeQuestion}
-              tokens={[p1Token, p2Token].filter(Boolean)}
-              onPose={(text) => send({ type: "POSE_QUESTION", text })}
-              onClear={() => send({ type: "CLEAR_QUESTION" })}
-              onNextSpeaker={() => send({ type: "ROTATE_TURN", at: Date.now() })}
-              onNextRound={() => {
-                const last = state.battle.rounds.current === state.battle.rounds.max;
-                const msg = last
-                  ? "End the match and go to results?"
-                  : `End Round ${state.battle.rounds.current} and start Round ${state.battle.rounds.current + 1}?`;
-                if (typeof window !== "undefined" && window.confirm(msg)) {
-                  send({ type: "NEXT_ROUND", at: Date.now() });
-                }
-              }}
-            />
-          ) : (
-            <ModeratorPanel
-              round={state.battle.rounds.current}
-              maxRounds={state.battle.rounds.max}
-              speakerToken={state.battle.turnOwner === "p1" ? p1Token : p2Token}
-              isPaced={isModeratorPacedRound}
-              onNextSpeaker={() => send({ type: "ROTATE_TURN", at: Date.now() })}
-              onNextRound={() => {
-                const last = state.battle.rounds.current === state.battle.rounds.max;
-                const msg = last
-                  ? "End the match and go to results?"
-                  : `End Round ${state.battle.rounds.current} and start Round ${state.battle.rounds.current + 1}?`;
-                if (typeof window !== "undefined" && window.confirm(msg)) {
-                  send({ type: "NEXT_ROUND", at: Date.now() });
-                }
-              }}
-            />
-          )
+          (() => {
+            const confirmNextRound = () => {
+              const last = state.battle.rounds.current === state.battle.rounds.max;
+              const msg = last
+                ? "End the match and go to results?"
+                : `End Round ${state.battle.rounds.current} and start Round ${state.battle.rounds.current + 1}?`;
+              if (typeof window !== "undefined" && window.confirm(msg)) {
+                send({ type: "NEXT_ROUND", at: Date.now() });
+              }
+            };
+            if (currentRoundType === "moderator_qa") {
+              return (
+                <ModeratorQAPanel
+                  round={state.battle.rounds.current}
+                  maxRounds={state.battle.rounds.max}
+                  activeQuestion={state.activeQuestion}
+                  tokens={[p1Token, p2Token].filter(Boolean)}
+                  onPose={(text) => send({ type: "POSE_QUESTION", text })}
+                  onClear={() => send({ type: "CLEAR_QUESTION" })}
+                  onNextSpeaker={() => send({ type: "ROTATE_TURN", at: Date.now() })}
+                  onNextRound={confirmNextRound}
+                />
+              );
+            }
+            if (currentRoundType === "crowd") {
+              return (
+                <ModeratorCrowdPanel
+                  round={state.battle.rounds.current}
+                  maxRounds={state.battle.rounds.max}
+                  activeQuestion={state.activeQuestion}
+                  crowdQuestions={state.crowdQuestions}
+                  onAsk={(id) => send({ type: "ASK_CROWD_QUESTION", id })}
+                  onClear={() => send({ type: "CLEAR_QUESTION" })}
+                  onNextSpeaker={() => send({ type: "ROTATE_TURN", at: Date.now() })}
+                  onNextRound={confirmNextRound}
+                />
+              );
+            }
+            return (
+              <ModeratorPanel
+                round={state.battle.rounds.current}
+                maxRounds={state.battle.rounds.max}
+                speakerToken={state.battle.turnOwner === "p1" ? p1Token : p2Token}
+                isPaced={isModeratorPacedRound}
+                onNextSpeaker={() => send({ type: "ROTATE_TURN", at: Date.now() })}
+                onNextRound={confirmNextRound}
+              />
+            );
+          })()
+        ) : currentRoundType === "crowd" ? (
+          <AudienceCrowdPanel
+            crowdQuestions={state.crowdQuestions}
+            onSubmit={(text) => {
+              const authorId = getCrowdAuthorId();
+              send({ type: "SUBMIT_CROWD_QUESTION", text, authorId });
+            }}
+            onVote={(target) => send({ type: "VOTE", role: target })}
+            p1Token={p1Token || p1Char.name}
+            p2Token={p2Token || p2Char.name}
+          />
         ) : (
           <AudienceBar
             onVote={(target) => send({ type: "VOTE", role: target })}
@@ -871,6 +914,226 @@ function ModeratorQAPanel({
             ))
           )}
         </ul>
+      </div>
+    </div>
+  );
+}
+
+function ModeratorCrowdPanel({
+  round,
+  maxRounds,
+  activeQuestion,
+  crowdQuestions,
+  onAsk,
+  onClear,
+  onNextSpeaker,
+  onNextRound,
+}: {
+  round: number;
+  maxRounds: number;
+  activeQuestion: string | null;
+  crowdQuestions: CrowdQuestion[];
+  onAsk: (id: string) => void;
+  onClear: () => void;
+  onNextSpeaker: () => void;
+  onNextRound: () => void;
+}) {
+  const isLast = round === maxRounds;
+  const pending = crowdQuestions.filter((q) => !q.asked);
+  const asked = crowdQuestions.filter((q) => q.asked);
+
+  return (
+    <div className="rounded-md border-2 border-purple-500/50 bg-purple-500/[0.04] backdrop-blur-sm p-3 flex flex-col gap-3 max-h-[40vh]">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-purple-500/15 border border-purple-500/40 text-purple-300 text-[10px] font-medium tracking-wider uppercase">
+            <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
+            Moderator · Round {round}/{maxRounds} · Crowd
+          </span>
+          <span className="font-arcade text-[10px] text-foreground/60 tracking-widest">
+            {pending.length} PENDING · {asked.length} ASKED
+          </span>
+          {activeQuestion && (
+            <span className="font-arcade text-[10px] text-emerald-300 tracking-widest">
+              QUESTION LIVE
+            </span>
+          )}
+        </div>
+        <div className="flex gap-2">
+          {activeQuestion && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onClear}
+              className="font-arcade text-[10px] h-8 border-foreground/30 hover:border-foreground/60"
+            >
+              Clear question
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onNextSpeaker}
+            className="font-arcade text-[10px] h-8 border-foreground/30 hover:border-foreground/60"
+          >
+            ⏭ Next speaker
+          </Button>
+          <Button
+            size="sm"
+            onClick={onNextRound}
+            className="font-arcade text-[10px] h-8 px-4 bg-purple-500/90 hover:bg-purple-500 text-white shadow-[0_0_18px_rgba(168,85,247,0.45)]"
+          >
+            {isLast ? "End match →" : "End round →"}
+          </Button>
+        </div>
+      </div>
+
+      <div className="overflow-y-auto -mx-1 px-1 flex-1 min-h-0">
+        {crowdQuestions.length === 0 ? (
+          <p className="text-sm text-foreground/50 italic px-2 py-6 text-center">
+            No crowd questions yet. They&apos;ll show up here as the audience submits.
+          </p>
+        ) : (
+          <ul className="space-y-1.5">
+            {[...crowdQuestions].sort((a, b) => Number(a.asked) - Number(b.asked) || a.at - b.at).map((q) => (
+              <li
+                key={q.id}
+                className={`flex items-start gap-2 rounded border p-2 transition-colors ${
+                  q.asked
+                    ? "border-border/30 bg-background/20 opacity-50"
+                    : "border-emerald-500/40 bg-emerald-500/[0.05] hover:border-emerald-500"
+                }`}
+              >
+                <p className="flex-1 text-sm text-foreground/90 leading-snug">
+                  {q.text}
+                </p>
+                <span className="font-arcade text-[9px] text-foreground/40 tracking-widest mt-0.5">
+                  @{q.authorId.slice(0, 4)}
+                </span>
+                {q.asked ? (
+                  <span className="font-arcade text-[9px] text-emerald-400/70 tracking-widest mt-1">
+                    ASKED
+                  </span>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onAsk(q.id)}
+                    className="font-arcade text-[10px] h-7 px-3 border-emerald-500/40 hover:bg-emerald-500/15 hover:text-emerald-200 flex-shrink-0"
+                  >
+                    Ask
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AudienceCrowdPanel({
+  crowdQuestions,
+  onSubmit,
+  onVote,
+  p1Token,
+  p2Token,
+}: {
+  crowdQuestions: CrowdQuestion[];
+  onSubmit: (text: string) => void;
+  onVote: (target: "p1" | "p2") => void;
+  p1Token: string;
+  p2Token: string;
+}) {
+  const [text, setText] = useState("");
+  const [authorId, setAuthorId] = useState<string | null>(null);
+  useEffect(() => {
+    setAuthorId(getCrowdAuthorId());
+  }, []);
+
+  const mine = authorId ? crowdQuestions.filter((q) => q.authorId === authorId) : [];
+  const remaining = CROWD_QUESTIONS_PER_AUTHOR - mine.length;
+  const canSubmit = remaining > 0 && text.trim().length >= 5;
+
+  const submit = () => {
+    if (!canSubmit) return;
+    onSubmit(text.trim());
+    setText("");
+  };
+
+  return (
+    <div className="rounded-md border-2 border-emerald-500/40 bg-emerald-500/[0.04] backdrop-blur-sm p-3 flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <p className="font-arcade text-[10px] text-emerald-300 tracking-widest">
+          CROWD ROUND · YOU CAN SUBMIT {CROWD_QUESTIONS_PER_AUTHOR} QUESTIONS
+        </p>
+        <p className="font-arcade text-[10px] text-foreground/60 tracking-widest">
+          {remaining} REMAINING
+        </p>
+      </div>
+
+      <div className="flex gap-2">
+        <Input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
+          placeholder={remaining > 0 ? "Ask the fighters a question…" : "You've used both questions."}
+          maxLength={240}
+          disabled={remaining <= 0}
+          className="font-sans text-base flex-1"
+        />
+        <Button
+          size="sm"
+          onClick={submit}
+          disabled={!canSubmit}
+          className="font-arcade text-[10px] h-9 px-4 bg-emerald-500/90 hover:bg-emerald-500 text-black shadow-[0_0_18px_rgba(57,255,122,0.45)]"
+        >
+          Submit →
+        </Button>
+      </div>
+
+      {mine.length > 0 && (
+        <div className="border-t border-border/40 pt-2">
+          <p className="font-arcade text-[9px] text-foreground/50 tracking-widest mb-1">
+            YOUR SUBMISSIONS
+          </p>
+          <ul className="space-y-1">
+            {mine.map((q) => (
+              <li key={q.id} className="text-sm text-foreground/80 flex items-start gap-2">
+                <span className={q.asked ? "text-emerald-400" : "text-foreground/40"}>
+                  {q.asked ? "✓" : "○"}
+                </span>
+                <span className="flex-1 truncate">{q.text}</span>
+                <span className="font-arcade text-[9px] text-foreground/40 tracking-widest mt-0.5">
+                  {q.asked ? "ASKED" : "PENDING"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="border-t border-border/40 pt-2 flex flex-col sm:flex-row gap-2 sm:gap-3 items-center justify-center">
+        <p className="font-arcade text-[10px] text-foreground/50 tracking-widest sm:mr-2">
+          AND VOTE:
+        </p>
+        <div className="flex gap-3 w-full sm:w-auto">
+          <Button
+            onClick={() => onVote("p1")}
+            variant="outline"
+            className="flex-1 sm:flex-none font-arcade text-xs h-10 px-5 border-neon-red/60 hover:bg-neon-red/15 hover:text-neon-red active:animate-vote-pulse"
+          >
+            ▲ {p1Token}
+          </Button>
+          <Button
+            onClick={() => onVote("p2")}
+            variant="outline"
+            className="flex-1 sm:flex-none font-arcade text-xs h-10 px-5 border-neon-blue/60 hover:bg-neon-blue/15 hover:text-neon-blue active:animate-vote-pulse"
+          >
+            {p2Token} ▲
+          </Button>
+        </div>
       </div>
     </div>
   );

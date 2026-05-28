@@ -15,6 +15,20 @@ export default function LobbyPage() {
   const router = useRouter();
   const { state, role, hydrated, claimRole, send } = useMatch();
   const [wallets, setWallets] = useState<{ p1: number; p2: number } | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const copyInvite = async () => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    url.searchParams.set("match", state.matchId);
+    try {
+      await navigator.clipboard.writeText(url.toString());
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      // Fallback: select + manual copy not great here; just no-op.
+    }
+  };
 
   useEffect(() => {
     if (!hydrated) return;
@@ -53,6 +67,14 @@ export default function LobbyPage() {
           <span className="type-mono text-xs text-foreground/60">
             MATCH · {state.matchId}
           </span>
+          <button
+            onClick={copyInvite}
+            disabled={!hydrated || state.matchId === "------"}
+            className="type-mono text-xs text-foreground/60 hover:text-foreground/95 disabled:opacity-40 border border-foreground/15 hover:border-foreground/40 rounded px-2 py-0.5 transition-colors"
+            title="Copy a shareable invite link for this match"
+          >
+            {copied ? "✓ Copied" : "Copy invite link"}
+          </button>
           {role && (
             <span className="type-mono text-xs text-foreground/80">
               YOU · {role.toUpperCase()}

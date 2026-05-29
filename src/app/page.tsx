@@ -155,8 +155,9 @@ export default function LobbyPage() {
 
         {/* Bottom hint */}
         <p className="mt-8 type-mono text-xs text-foreground/40 text-center">
-          Need three tabs (P1 · P2 · Audience) on the same browser. Multiplayer
-          across devices is coming.
+          Open roles in separate tabs, or hit{" "}
+          <span className="text-foreground/70">Copy invite link</span> to play
+          live across devices.
         </p>
 
         {/* Roster preview */}

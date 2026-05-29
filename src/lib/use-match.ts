@@ -94,7 +94,12 @@ export function useMatch() {
     if (requestedMatch && existing?.matchId !== requestedMatch) {
       // Joining a friend's match — start with a fresh shell using their matchId.
       // Pusher subscription will pull the live state from peers on the channel.
-      snapshot = makeInitialState(requestedMatch);
+      // updatedAt:0 marks this shell as "not yet synced" so ANY peer snapshot
+      // (which always has a later, real timestamp) wins the adoption gates in
+      // both the Pusher handler and the HOST_SYNC reducer. Without this, the
+      // shell's Date.now() stamp would be newer than the live match's last
+      // action and the catch-up snapshot would be silently rejected.
+      snapshot = { ...makeInitialState(requestedMatch), updatedAt: 0 };
     } else {
       snapshot = existing ?? makeInitialState();
     }
